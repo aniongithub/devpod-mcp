@@ -26,27 +26,27 @@ jobs:
             rustup target add aarch64-unknown-linux-gnu x86_64-unknown-linux-gnu
 
             # Build linux-x64 (native)
-            cargo build --release --target x86_64-unknown-linux-gnu -p devpod-mcp
+            cargo build --release --target x86_64-unknown-linux-gnu -p devcontainer-mcp
 
             # Build linux-arm64 (cross-compile with correct linker)
             CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
-              cargo build --release --target aarch64-unknown-linux-gnu -p devpod-mcp
+              cargo build --release --target aarch64-unknown-linux-gnu -p devcontainer-mcp
 
             # Copy binaries to output dir
             mkdir -p /tmp/release
-            cp target/x86_64-unknown-linux-gnu/release/devpod-mcp /tmp/release/devpod-mcp-linux-x64
-            cp target/aarch64-unknown-linux-gnu/release/devpod-mcp /tmp/release/devpod-mcp-linux-arm64
+            cp target/x86_64-unknown-linux-gnu/release/devcontainer-mcp /tmp/release/devcontainer-mcp-linux-x64
+            cp target/aarch64-unknown-linux-gnu/release/devcontainer-mcp /tmp/release/devcontainer-mcp-linux-arm64
             chmod +x /tmp/release/*
 
       - name: Upload linux-x64
         uses: softprops/action-gh-release@v3
         with:
-          files: /tmp/release/devpod-mcp-linux-x64
+          files: /tmp/release/devcontainer-mcp-linux-x64
 
       - name: Upload linux-arm64
         uses: softprops/action-gh-release@v3
         with:
-          files: /tmp/release/devpod-mcp-linux-arm64
+          files: /tmp/release/devcontainer-mcp-linux-arm64
 
   build-macos:
     name: Build ${{ matrix.artifact }}
@@ -55,9 +55,9 @@ jobs:
       matrix:
         include:
           - target: x86_64-apple-darwin
-            artifact: devpod-mcp-darwin-x64
+            artifact: devcontainer-mcp-darwin-x64
           - target: aarch64-apple-darwin
-            artifact: devpod-mcp-darwin-arm64
+            artifact: devcontainer-mcp-darwin-arm64
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
@@ -68,11 +68,11 @@ jobs:
           key: ${{ matrix.target }}
 
       - name: Build
-        run: cargo build --release --target ${{ matrix.target }} -p devpod-mcp
+        run: cargo build --release --target ${{ matrix.target }} -p devcontainer-mcp
 
       - name: Package binary
         run: |
-          cp target/${{ matrix.target }}/release/devpod-mcp ${{ matrix.artifact }}
+          cp target/${{ matrix.target }}/release/devcontainer-mcp ${{ matrix.artifact }}
           chmod +x ${{ matrix.artifact }}
 
       - name: Upload release asset

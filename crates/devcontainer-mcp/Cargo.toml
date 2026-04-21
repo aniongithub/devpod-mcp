@@ -1,5 +1,5 @@
 [package]
-name = "devpod-mcp"
+name = "devcontainer-mcp"
 version = "0.1.0"
 description = "MCP server and CLI for managing DevContainers"
 edition.workspace = true
@@ -7,7 +7,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-devpod-mcp-core = { path = "../devpod-mcp-core" }
+devcontainer-mcp-core = { path = "../devcontainer-mcp-core" }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

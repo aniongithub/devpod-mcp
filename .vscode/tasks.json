@@ -8,7 +8,7 @@
       "args": [
         "--release",
         "-p",
-        "devpod-mcp"
+        "devcontainer-mcp"
       ],
       "group": {
         "kind": "build",
@@ -22,7 +22,7 @@
       "command": "bash",
       "args": [
         "-c",
-        "set -e && targets=(x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu x86_64-apple-darwin aarch64-apple-darwin) && for t in \"${targets[@]}\"; do echo \"\\n==> Building $t\" && rustup target add \"$t\" 2>/dev/null && cargo build --release --target \"$t\" -p devpod-mcp && echo \"    ✓ target/$t/release/devpod-mcp\"; done"
+        "set -e && targets=(x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu x86_64-apple-darwin aarch64-apple-darwin) && for t in \"${targets[@]}\"; do echo \"\\n==> Building $t\" && rustup target add \"$t\" 2>/dev/null && cargo build --release --target \"$t\" -p devcontainer-mcp && echo \"    ✓ target/$t/release/devcontainer-mcp\"; done"
       ],
       "group": "build",
       "problemMatcher": ["$rustc"]

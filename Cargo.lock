@@ -255,12 +255,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "devpod-mcp"
+name = "devcontainer-mcp"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
- "devpod-mcp-core",
+ "devcontainer-mcp-core",
  "rmcp",
  "serde",
  "serde_json",
@@ -270,7 +270,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "devpod-mcp-core"
+name = "devcontainer-mcp-core"
 version = "0.1.0"
 dependencies = [
  "bollard",

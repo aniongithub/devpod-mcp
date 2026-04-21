@@ -1,14 +1,14 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/devpod-mcp-core",
-    "crates/devpod-mcp",
+    "crates/devcontainer-mcp-core",
+    "crates/devcontainer-mcp",
 ]
 
 [workspace.package]
 edition = "2021"
 license = "MIT"
-repository = "https://github.com/aniongithub/devpod-mcp"
+repository = "https://github.com/aniongithub/devcontainer-mcp"
 
 [workspace.dependencies]
 tokio = { version = "1", features = ["full"] }

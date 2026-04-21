@@ -18,6 +18,6 @@ jobs:
           push: never
           runCmd: |
             cargo fmt --all -- --check
-            cargo check -p devpod-mcp-core -p devpod-mcp
-            cargo test -p devpod-mcp-core -p devpod-mcp
-            cargo clippy -p devpod-mcp-core -p devpod-mcp -- -D warnings
+            cargo check -p devcontainer-mcp-core -p devcontainer-mcp
+            cargo test -p devcontainer-mcp-core -p devcontainer-mcp
+            cargo clippy -p devcontainer-mcp-core -p devcontainer-mcp -- -D warnings
