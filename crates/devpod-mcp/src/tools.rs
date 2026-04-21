@@ -29,11 +29,16 @@ impl DevContainerMcp {
     // Workspace lifecycle
     // -----------------------------------------------------------------------
 
-    #[tool(name = "devpod_up", description = "Create and start a DevPod workspace. Pass the source (git URL, local path, or image) and any flags as space-separated args. Returns full build output for self-healing.")]
+    #[tool(
+        name = "devpod_up",
+        description = "Create and start a DevPod workspace. Pass the source (git URL, local path, or image) and any flags as space-separated args. Returns full build output for self-healing."
+    )]
     async fn up(
         &self,
         #[tool(param)]
-        #[schemars(description = "All arguments for 'devpod up', e.g. 'https://github.com/org/repo --provider docker --id my-ws'")]
+        #[schemars(
+            description = "All arguments for 'devpod up', e.g. 'https://github.com/org/repo --provider docker --id my-ws'"
+        )]
         args: String,
     ) -> String {
         let parts: Vec<&str> = args.split_whitespace().collect();
@@ -56,7 +61,10 @@ impl DevContainerMcp {
         }
     }
 
-    #[tool(name = "devpod_delete", description = "Delete a DevPod workspace. Stops and removes all associated resources.")]
+    #[tool(
+        name = "devpod_delete",
+        description = "Delete a DevPod workspace. Stops and removes all associated resources."
+    )]
     async fn delete(
         &self,
         #[tool(param)]
@@ -72,11 +80,16 @@ impl DevContainerMcp {
         }
     }
 
-    #[tool(name = "devpod_build", description = "Build a DevPod workspace image without starting it.")]
+    #[tool(
+        name = "devpod_build",
+        description = "Build a DevPod workspace image without starting it."
+    )]
     async fn build(
         &self,
         #[tool(param)]
-        #[schemars(description = "All arguments for 'devpod build', e.g. 'my-workspace --provider docker'")]
+        #[schemars(
+            description = "All arguments for 'devpod build', e.g. 'my-workspace --provider docker'"
+        )]
         args: String,
     ) -> String {
         let parts: Vec<&str> = args.split_whitespace().collect();
@@ -90,7 +103,10 @@ impl DevContainerMcp {
     // Workspace queries
     // -----------------------------------------------------------------------
 
-    #[tool(name = "devpod_status", description = "Get the status of a DevPod workspace. Returns structured JSON with state (Running, Stopped, Busy, NotFound).")]
+    #[tool(
+        name = "devpod_status",
+        description = "Get the status of a DevPod workspace. Returns structured JSON with state (Running, Stopped, Busy, NotFound)."
+    )]
     async fn status(
         &self,
         #[tool(param)]
@@ -106,7 +122,10 @@ impl DevContainerMcp {
         }
     }
 
-    #[tool(name = "devpod_list", description = "List all DevPod workspaces. Returns JSON array with workspace IDs, sources, providers, and status.")]
+    #[tool(
+        name = "devpod_list",
+        description = "List all DevPod workspaces. Returns JSON array with workspace IDs, sources, providers, and status."
+    )]
     async fn list(&self) -> String {
         match devpod::list().await {
             Ok(output) => format_output(&output),
@@ -118,7 +137,10 @@ impl DevContainerMcp {
     // Command execution
     // -----------------------------------------------------------------------
 
-    #[tool(name = "devpod_ssh", description = "Execute a command inside a DevPod workspace via SSH. Returns stdout, stderr, and exit code.")]
+    #[tool(
+        name = "devpod_ssh",
+        description = "Execute a command inside a DevPod workspace via SSH. Returns stdout, stderr, and exit code."
+    )]
     async fn ssh(
         &self,
         #[tool(param)]
@@ -144,7 +166,10 @@ impl DevContainerMcp {
     // Logs
     // -----------------------------------------------------------------------
 
-    #[tool(name = "devpod_logs", description = "Get logs from a DevPod workspace.")]
+    #[tool(
+        name = "devpod_logs",
+        description = "Get logs from a DevPod workspace."
+    )]
     async fn logs(
         &self,
         #[tool(param)]
@@ -161,7 +186,10 @@ impl DevContainerMcp {
     // Provider management
     // -----------------------------------------------------------------------
 
-    #[tool(name = "devpod_provider_list", description = "List all configured DevPod providers.")]
+    #[tool(
+        name = "devpod_provider_list",
+        description = "List all configured DevPod providers."
+    )]
     async fn provider_list(&self) -> String {
         match devpod::provider_list().await {
             Ok(output) => format_output(&output),
@@ -189,7 +217,10 @@ impl DevContainerMcp {
         }
     }
 
-    #[tool(name = "devpod_provider_delete", description = "Delete a DevPod provider.")]
+    #[tool(
+        name = "devpod_provider_delete",
+        description = "Delete a DevPod provider."
+    )]
     async fn provider_delete(
         &self,
         #[tool(param)]
@@ -206,7 +237,10 @@ impl DevContainerMcp {
     // Context management
     // -----------------------------------------------------------------------
 
-    #[tool(name = "devpod_context_list", description = "List all DevPod contexts.")]
+    #[tool(
+        name = "devpod_context_list",
+        description = "List all DevPod contexts."
+    )]
     async fn context_list(&self) -> String {
         match devpod::context_list().await {
             Ok(output) => format_output(&output),
@@ -214,7 +248,10 @@ impl DevContainerMcp {
         }
     }
 
-    #[tool(name = "devpod_context_use", description = "Switch to a different DevPod context.")]
+    #[tool(
+        name = "devpod_context_use",
+        description = "Switch to a different DevPod context."
+    )]
     async fn context_use(
         &self,
         #[tool(param)]
@@ -231,7 +268,10 @@ impl DevContainerMcp {
     // Direct Docker (via bollard)
     // -----------------------------------------------------------------------
 
-    #[tool(name = "devpod_container_inspect", description = "Inspect a Docker container directly — returns labels, ports, mounts, and state. Useful for details DevPod CLI doesn't expose.")]
+    #[tool(
+        name = "devpod_container_inspect",
+        description = "Inspect a Docker container directly — returns labels, ports, mounts, and state. Useful for details DevPod CLI doesn't expose."
+    )]
     async fn container_inspect(
         &self,
         #[tool(param)]
@@ -248,7 +288,10 @@ impl DevContainerMcp {
         }
     }
 
-    #[tool(name = "devpod_container_logs", description = "Get Docker container logs directly via the Docker API. Supports tail parameter for last N lines.")]
+    #[tool(
+        name = "devpod_container_logs",
+        description = "Get Docker container logs directly via the Docker API. Supports tail parameter for last N lines."
+    )]
     async fn container_logs(
         &self,
         #[tool(param)]
