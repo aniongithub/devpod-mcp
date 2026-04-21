@@ -12,7 +12,7 @@ jobs:
     name: Build release binaries
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Build all targets in devcontainer
         uses: devcontainers/ci@v0.3
@@ -39,12 +39,12 @@ jobs:
             chmod +x /tmp/release/*
 
       - name: Upload linux-x64
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: /tmp/release/devpod-mcp-linux-x64
 
       - name: Upload linux-arm64
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: /tmp/release/devpod-mcp-linux-arm64
 
@@ -59,7 +59,7 @@ jobs:
           - target: aarch64-apple-darwin
             artifact: devpod-mcp-darwin-arm64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -76,6 +76,6 @@ jobs:
           chmod +x ${{ matrix.artifact }}
 
       - name: Upload release asset
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: ${{ matrix.artifact }}
