@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    name: Check & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo check -p devpod-mcp-core -p devpod-mcp
+      - run: cargo test -p devpod-mcp-core -p devpod-mcp
+      - run: cargo clippy -p devpod-mcp-core -p devpod-mcp -- -D warnings
+      - run: cargo fmt --all -- --check

@@ -1,0 +1,16 @@
+[package]
+name = "devpod-mcp-core"
+version = "0.1.0"
+description = "Core library for devpod-mcp: DevPod CLI wrapper and Docker queries"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+bollard = { workspace = true }
+tracing = { workspace = true }
+futures-util = "0.3"

@@ -1,0 +1,18 @@
+# Rust
+/target
+**/*.rs.bk
+*.pdb
+
+# DevPod / DevContainer internals
+.devcontainer/.devpod-internal/
+.devcontainer/devcontainer-lock.json
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
