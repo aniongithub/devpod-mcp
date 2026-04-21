@@ -19,17 +19,17 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
-            artifact: devcontainer-mcp-linux-x64
+            artifact: devpod-mcp-linux-x64
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
-            artifact: devcontainer-mcp-linux-arm64
+            artifact: devpod-mcp-linux-arm64
             cross: true
           - target: x86_64-apple-darwin
             os: macos-latest
-            artifact: devcontainer-mcp-darwin-x64
+            artifact: devpod-mcp-darwin-x64
           - target: aarch64-apple-darwin
             os: macos-latest
-            artifact: devcontainer-mcp-darwin-arm64
+            artifact: devpod-mcp-darwin-arm64
 
     steps:
       - uses: actions/checkout@v4
@@ -49,11 +49,11 @@ jobs:
           echo 'linker = "aarch64-linux-gnu-gcc"' >> ~/.cargo/config.toml
 
       - name: Build
-        run: cargo build --release --target ${{ matrix.target }} -p devcontainer-mcp
+        run: cargo build --release --target ${{ matrix.target }} -p devpod-mcp
 
       - name: Package binary
         run: |
-          cp target/${{ matrix.target }}/release/devcontainer-mcp ${{ matrix.artifact }}
+          cp target/${{ matrix.target }}/release/devpod-mcp ${{ matrix.artifact }}
           chmod +x ${{ matrix.artifact }}
 
       - name: Upload release asset

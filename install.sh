@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# devcontainer-mcp installer
+# devpod-mcp installer
 # Downloads the latest release binary and installs DevPod CLI if not present.
 #
 # Usage:
@@ -67,20 +67,20 @@ if [[ -z "$VERSION" ]]; then
 fi
 echo "==> Latest version: ${VERSION}"
 
-BINARY_NAME="devcontainer-mcp-${PLATFORM}"
+BINARY_NAME="devpod-mcp-${PLATFORM}"
 DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${VERSION}/${BINARY_NAME}"
 
 # Create install directory
 mkdir -p "$INSTALL_DIR"
 
 echo "==> Downloading ${BINARY_NAME}..."
-curl -fsSL -o "${INSTALL_DIR}/devcontainer-mcp" "$DOWNLOAD_URL"
-chmod +x "${INSTALL_DIR}/devcontainer-mcp"
-echo "==> Installed devcontainer-mcp to ${INSTALL_DIR}/devcontainer-mcp"
+curl -fsSL -o "${INSTALL_DIR}/devpod-mcp" "$DOWNLOAD_URL"
+chmod +x "${INSTALL_DIR}/devpod-mcp"
+echo "==> Installed devpod-mcp to ${INSTALL_DIR}/devpod-mcp"
 
 # Verify
-if "${INSTALL_DIR}/devcontainer-mcp" --version >/dev/null 2>&1; then
-  echo "==> $(${INSTALL_DIR}/devcontainer-mcp --version)"
+if "${INSTALL_DIR}/devpod-mcp" --version >/dev/null 2>&1; then
+  echo "==> $(${INSTALL_DIR}/devpod-mcp --version)"
 else
   echo "Warning: Binary downloaded but failed to run. Check platform compatibility."
 fi
@@ -139,8 +139,8 @@ echo ""
 echo "Done! Configure your MCP client:"
 echo '  {'
 echo '    "mcpServers": {'
-echo '      "devcontainer-mcp": {'
-echo "        \"command\": \"${INSTALL_DIR}/devcontainer-mcp\","
+echo '      "devpod-mcp": {'
+echo "        \"command\": \"${INSTALL_DIR}/devpod-mcp\","
 echo '        "args": ["serve"]'
 echo '      }'
 echo '    }'

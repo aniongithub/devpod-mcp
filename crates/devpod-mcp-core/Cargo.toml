@@ -1,7 +1,7 @@
 [package]
-name = "devcontainer-mcp-core"
+name = "devpod-mcp-core"
 version = "0.1.0"
-description = "Core library for devcontainer-mcp: DevPod CLI wrapper and Docker queries"
+description = "Core library for devpod-mcp: DevPod CLI wrapper and Docker queries"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true

@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-/// Unified error type for devcontainer-mcp-core.
+/// Unified error type for devpod-mcp-core.
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Docker error: {0}")]

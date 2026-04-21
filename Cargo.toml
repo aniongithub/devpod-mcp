@@ -1,8 +1,8 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/devcontainer-mcp-core",
-    "crates/devcontainer-mcp",
+    "crates/devpod-mcp-core",
+    "crates/devpod-mcp",
 ]
 
 [workspace.package]

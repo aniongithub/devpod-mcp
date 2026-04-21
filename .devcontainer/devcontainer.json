@@ -1,5 +1,5 @@
 {
-  "name": "devcontainer-mcp",
+  "name": "devpod-mcp",
   "build": {
     "dockerfile": "Dockerfile"
   },

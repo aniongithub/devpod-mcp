@@ -5,7 +5,7 @@ use rmcp::ServiceExt;
 use tokio::io::{stdin, stdout};
 
 #[derive(Parser)]
-#[command(name = "devcontainer-mcp")]
+#[command(name = "devpod-mcp")]
 #[command(about = "MCP server and CLI for managing DevContainers")]
 #[command(version)]
 struct Cli {
@@ -30,7 +30,7 @@ async fn main() -> anyhow::Result<()> {
 
     match cli.command {
         Commands::Serve => {
-            tracing::info!("Starting devcontainer-mcp MCP server over stdio");
+            tracing::info!("Starting devpod-mcp MCP server over stdio");
             let service = tools::DevContainerMcp::new();
             let server = service.serve((stdin(), stdout())).await?;
             server.waiting().await?;

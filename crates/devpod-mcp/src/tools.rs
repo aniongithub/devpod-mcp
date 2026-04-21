@@ -1,7 +1,7 @@
 use rmcp::model::ServerInfo;
 use rmcp::{tool, ServerHandler};
 
-use devcontainer_mcp_core::{devpod, docker};
+use devpod_mcp_core::{devpod, docker};
 
 #[derive(Debug, Clone)]
 pub struct DevContainerMcp;
@@ -280,7 +280,7 @@ impl ServerHandler for DevContainerMcp {
                     .into(),
             ),
             server_info: rmcp::model::Implementation {
-                name: "devcontainer-mcp".into(),
+                name: "devpod-mcp".into(),
                 version: env!("CARGO_PKG_VERSION").into(),
             },
             ..Default::default()

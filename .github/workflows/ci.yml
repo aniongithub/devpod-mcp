@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo check -p devcontainer-mcp-core -p devcontainer-mcp
-      - run: cargo test -p devcontainer-mcp-core -p devcontainer-mcp
-      - run: cargo clippy -p devcontainer-mcp-core -p devcontainer-mcp -- -D warnings
+      - run: cargo check -p devpod-mcp-core -p devpod-mcp
+      - run: cargo test -p devpod-mcp-core -p devpod-mcp
+      - run: cargo clippy -p devpod-mcp-core -p devpod-mcp -- -D warnings
       - run: cargo fmt --all -- --check

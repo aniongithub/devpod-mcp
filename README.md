@@ -1,8 +1,7 @@
-# devcontainer-mcp
+# devpod-mcp
 
 An MCP server that wraps the [DevPod](https://devpod.sh/) CLI to give AI coding agents full control over isolated development environments — so work happens inside the right container, not on the host.
 
-> **Note:** This project will be renamed to `devpod-mcp` in the future.
 
 ## Quick Install
 
@@ -25,7 +24,7 @@ AI coding agents suffer from **Host Contamination** and **Context Drift**. They 
 ┌──────────────────────────────────────────────────┐
 │                  Cargo Workspace                 │
 ├──────────────────┬───────────────────────────────┤
-│  devcontainer-   │ devcontainer-mcp (binary)     │
+│  devcontainer-   │ devpod-mcp (binary)     │
 │  mcp-core (lib)  │                               │
 │                  │ • 15 MCP tools                │
 │  • devpod.rs     │ • CLI (clap) serve command    │
@@ -81,8 +80,8 @@ AI coding agents suffer from **Host Contamination** and **Context Drift**. They 
 ```json
 {
   "mcpServers": {
-    "devcontainer-mcp": {
-      "command": "devcontainer-mcp",
+    "devpod-mcp": {
+      "command": "devpod-mcp",
       "args": ["serve"]
     }
   }
@@ -94,8 +93,8 @@ AI coding agents suffer from **Host Contamination** and **Context Drift**. They 
 Add to your MCP settings:
 ```json
 {
-  "devcontainer-mcp": {
-    "command": "devcontainer-mcp",
+  "devpod-mcp": {
+    "command": "devpod-mcp",
     "args": ["serve"]
   }
 }
@@ -123,16 +122,16 @@ This project eats its own dogfood — development happens inside a DevPod worksp
 
 ```bash
 # Create and start the dev workspace
-devpod up . --id devcontainer-mcp --provider docker --open-ide=false
+devpod up . --id devpod-mcp --provider docker --open-ide=false
 
 # Build inside the workspace
-devpod ssh devcontainer-mcp --command "cd /workspaces/devcontainer-mcp && cargo build --workspace"
+devpod ssh devpod-mcp --command "cd /workspaces/devpod-mcp && cargo build --workspace"
 
 # Run tests
-devpod ssh devcontainer-mcp --command "cd /workspaces/devcontainer-mcp && cargo test --workspace"
+devpod ssh devpod-mcp --command "cd /workspaces/devpod-mcp && cargo test --workspace"
 
 # Build release binary
-devpod ssh devcontainer-mcp --command "cd /workspaces/devcontainer-mcp && cargo build --release -p devcontainer-mcp"
+devpod ssh devpod-mcp --command "cd /workspaces/devpod-mcp && cargo build --release -p devpod-mcp"
 ```
 
 ### CI/CD
