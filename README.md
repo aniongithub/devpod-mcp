@@ -8,7 +8,7 @@ An MCP server that wraps the [DevPod](https://devpod.sh/) CLI to give AI coding 
 
 ```bash
 # Install MCP server + DevPod CLI (auto-detects OS/arch, installs DevPod if missing)
-curl -fsSL https://raw.githubusercontent.com/aniongithub/devcontainer-mcp/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/aniongithub/devpod-mcp/main/install.sh | bash
 ```
 
 Binaries are available for **linux-x64**, **linux-arm64**, **darwin-x64**, and **darwin-arm64**.

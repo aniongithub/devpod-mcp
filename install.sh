@@ -5,11 +5,11 @@ set -euo pipefail
 # Downloads the latest release binary and installs DevPod CLI if not present.
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/aniongithub/devcontainer-mcp/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/aniongithub/devpod-mcp/main/install.sh | bash
 #   curl -fsSL ... | bash -s -- --install-dir /usr/local/bin
 #   curl -fsSL ... | bash -s -- --skip-devpod
 
-REPO="aniongithub/devcontainer-mcp"
+REPO="aniongithub/devpod-mcp"
 INSTALL_DIR="${HOME}/.local/bin"
 SKIP_DEVPOD=false
 
