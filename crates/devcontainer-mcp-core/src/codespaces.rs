@@ -1,3 +1,6 @@
+use std::process::Stdio;
+use tokio::process::Command as TokioCommand;
+
 use crate::cli::{run_cli, CliBinary, CliOutput};
 use crate::error::Result;
 
@@ -6,11 +9,100 @@ const LIST_FIELDS: &str =
 const VIEW_FIELDS: &str = "name,displayName,state,owner,location,repository,gitStatus,devcontainerPath,machineName,machineDisplayName,prebuild,createdAt,lastUsedAt,idleTimeoutMinutes,retentionPeriodDays";
 const PORT_FIELDS: &str = "sourcePort,visibility,label,browseUrl";
 
-/// Run a `gh codespace` subcommand.
+/// Detect whether a CLI output indicates a missing OAuth scope.
+fn needs_auth_scope(output: &CliOutput) -> Option<String> {
+    let combined = format!("{}{}", output.stdout, output.stderr);
+    if combined.contains("gh auth refresh") || combined.contains("gh auth login") {
+        // Extract the suggested scope from the error message
+        // e.g. 'This API operation needs the "codespace" scope.'
+        if let Some(start) = combined.find("needs the \"") {
+            let rest = &combined[start + 11..];
+            if let Some(end) = rest.find('"') {
+                return Some(rest[..end].to_string());
+            }
+        }
+        // Fallback: generic codespace scope
+        Some("codespace".to_string())
+    } else {
+        None
+    }
+}
+
+/// Run `gh auth refresh` with --clipboard to copy the device code,
+/// then open the browser to the device auth page.
+/// Returns a user-friendly message with instructions.
+pub async fn request_auth_scope(scope: &str) -> Result<CliOutput> {
+    // Run gh auth refresh with --clipboard to copy device code
+    let auth_output = run_cli(
+        &CliBinary::Gh,
+        &[
+            "auth",
+            "refresh",
+            "-h",
+            "github.com",
+            "-s",
+            scope,
+            "--clipboard",
+        ],
+        false,
+    )
+    .await?;
+
+    // Try to open the browser to the device auth page
+    let open_cmd = if cfg!(target_os = "macos") {
+        "open"
+    } else {
+        "xdg-open"
+    };
+    let _ = TokioCommand::new(open_cmd)
+        .arg("https://github.com/login/device")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn();
+
+    Ok(auth_output)
+}
+
+/// Run a `gh codespace` subcommand. If the command fails due to a missing
+/// OAuth scope, automatically trigger the device-code auth flow.
 async fn run_gh_cs(args: &[&str], parse_json: bool) -> Result<CliOutput> {
     let mut full_args = vec!["codespace"];
     full_args.extend_from_slice(args);
-    run_cli(&CliBinary::Gh, &full_args, parse_json).await
+    let output = run_cli(&CliBinary::Gh, &full_args, parse_json).await?;
+
+    if output.exit_code != 0 {
+        if let Some(scope) = needs_auth_scope(&output) {
+            let auth_result = request_auth_scope(&scope).await?;
+            let combined = format!("{}{}", auth_result.stdout, auth_result.stderr);
+
+            // Extract the device code from output
+            let code_hint = if let Some(pos) = combined.find("one-time code:") {
+                let rest = &combined[pos..];
+                rest.lines().next().unwrap_or("").to_string()
+            } else {
+                String::new()
+            };
+
+            return Ok(CliOutput {
+                exit_code: 1,
+                stdout: String::new(),
+                stderr: String::new(),
+                json: Some(serde_json::json!({
+                    "auth_required": true,
+                    "scope": scope,
+                    "message": format!(
+                        "GitHub auth scope '{}' required. Device code copied to clipboard. \
+                         Approve in the browser that just opened, then retry the command.",
+                        scope
+                    ),
+                    "detail": code_hint,
+                    "browser_opened": "https://github.com/login/device",
+                })),
+            });
+        }
+    }
+
+    Ok(output)
 }
 
 // ---------------------------------------------------------------------------
