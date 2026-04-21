@@ -4,33 +4,60 @@ on:
   release:
     types: [created]
 
-env:
-  CARGO_TERM_COLOR: always
-
 permissions:
   contents: write
 
 jobs:
   build:
+    name: Build release binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build all targets in devcontainer
+        uses: devcontainers/ci@v0.3
+        with:
+          push: never
+          runCmd: |
+            set -e
+
+            # Install cross-compilation toolchain for linux-arm64
+            sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+            rustup target add aarch64-unknown-linux-gnu x86_64-unknown-linux-gnu
+            mkdir -p ~/.cargo
+            echo '[target.aarch64-unknown-linux-gnu]' >> ~/.cargo/config.toml
+            echo 'linker = "aarch64-linux-gnu-gcc"' >> ~/.cargo/config.toml
+
+            # Build all Linux targets
+            cargo build --release --target x86_64-unknown-linux-gnu -p devpod-mcp
+            cargo build --release --target aarch64-unknown-linux-gnu -p devpod-mcp
+
+            # Copy binaries to output dir
+            mkdir -p /tmp/release
+            cp target/x86_64-unknown-linux-gnu/release/devpod-mcp /tmp/release/devpod-mcp-linux-x64
+            cp target/aarch64-unknown-linux-gnu/release/devpod-mcp /tmp/release/devpod-mcp-linux-arm64
+            chmod +x /tmp/release/*
+
+      - name: Upload linux-x64
+        uses: softprops/action-gh-release@v2
+        with:
+          files: /tmp/release/devpod-mcp-linux-x64
+
+      - name: Upload linux-arm64
+        uses: softprops/action-gh-release@v2
+        with:
+          files: /tmp/release/devpod-mcp-linux-arm64
+
+  build-macos:
     name: Build ${{ matrix.artifact }}
-    runs-on: ${{ matrix.os }}
+    runs-on: macos-latest
     strategy:
       matrix:
         include:
-          - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
-            artifact: devpod-mcp-linux-x64
-          - target: aarch64-unknown-linux-gnu
-            os: ubuntu-latest
-            artifact: devpod-mcp-linux-arm64
-            cross: true
           - target: x86_64-apple-darwin
-            os: macos-latest
             artifact: devpod-mcp-darwin-x64
           - target: aarch64-apple-darwin
-            os: macos-latest
             artifact: devpod-mcp-darwin-arm64
-
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -39,14 +66,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
-
-      - name: Install cross-compilation deps
-        if: matrix.cross
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-          echo '[target.aarch64-unknown-linux-gnu]' >> ~/.cargo/config.toml
-          echo 'linker = "aarch64-linux-gnu-gcc"' >> ~/.cargo/config.toml
 
       - name: Build
         run: cargo build --release --target ${{ matrix.target }} -p devpod-mcp
