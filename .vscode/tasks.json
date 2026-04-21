@@ -1,0 +1,31 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build",
+      "type": "cargo",
+      "command": "build",
+      "args": [
+        "--release",
+        "-p",
+        "devcontainer-mcp"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": ["$rustc"]
+    },
+    {
+      "label": "Build All Platforms",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-c",
+        "set -e && targets=(x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu x86_64-apple-darwin aarch64-apple-darwin) && for t in \"${targets[@]}\"; do echo \"\\n==> Building $t\" && rustup target add \"$t\" 2>/dev/null && cargo build --release --target \"$t\" -p devcontainer-mcp && echo \"    ✓ target/$t/release/devcontainer-mcp\"; done"
+      ],
+      "group": "build",
+      "problemMatcher": ["$rustc"]
+    }
+  ]
+}

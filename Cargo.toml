@@ -1,0 +1,23 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/devcontainer-mcp-core",
+    "crates/devcontainer-mcp",
+]
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/aniongithub/devcontainer-mcp"
+
+[workspace.dependencies]
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+anyhow = "1"
+bollard = "0.18"
+clap = { version = "4", features = ["derive"] }
+rmcp = { version = "0.1", features = ["server", "transport-io"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
