@@ -95,11 +95,7 @@ pub async fn inspect_container(docker: &Docker, name_or_id: &str) -> Result<Cont
 
 /// Stream container logs, returning them as a single string.
 /// `tail` limits to the last N lines (0 = all).
-pub async fn container_logs(
-    docker: &Docker,
-    container_id: &str,
-    tail: usize,
-) -> Result<String> {
+pub async fn container_logs(docker: &Docker, container_id: &str, tail: usize) -> Result<String> {
     let options = LogsOptions::<String> {
         stdout: true,
         stderr: true,
@@ -123,4 +119,3 @@ pub async fn container_logs(
 
     Ok(output)
 }
-

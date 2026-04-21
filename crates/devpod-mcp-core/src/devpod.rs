@@ -131,7 +131,12 @@ pub async fn list() -> Result<DevPodOutput> {
 // ---------------------------------------------------------------------------
 
 /// `devpod ssh --command` — execute a command in a workspace.
-pub async fn ssh_exec(workspace: &str, command: &str, user: Option<&str>, workdir: Option<&str>) -> Result<DevPodOutput> {
+pub async fn ssh_exec(
+    workspace: &str,
+    command: &str,
+    user: Option<&str>,
+    workdir: Option<&str>,
+) -> Result<DevPodOutput> {
     let mut args = vec!["ssh", workspace, "--command", command];
     if let Some(u) = user {
         args.push("--user");

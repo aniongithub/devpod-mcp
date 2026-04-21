@@ -10,10 +10,7 @@ pub enum Error {
     DevPodNotFound,
 
     #[error("DevPod command failed (exit code {exit_code}): {stderr}")]
-    DevPodCommand {
-        exit_code: i32,
-        stderr: String,
-    },
+    DevPodCommand { exit_code: i32, stderr: String },
 
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
