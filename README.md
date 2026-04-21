@@ -20,20 +20,20 @@ AI coding agents suffer from **Host Contamination** and **Context Drift**. They 
 
 ## Architecture
 
-```
-┌──────────────────────────────────────────────────┐
-│                  Cargo Workspace                 │
-├──────────────────┬───────────────────────────────┤
-│  devcontainer-   │ devpod-mcp (binary)     │
-│  mcp-core (lib)  │                               │
-│                  │ • 15 MCP tools                │
-│  • devpod.rs     │ • CLI (clap) serve command    │
-│  • docker.rs     │ • stdio MCP transport         │
-│  • error.rs      │                               │
-└──────────────────┴───────────────────────────────┘
-         │                        │
-    DevPod CLI              Docker Engine
-    (subprocess)            (bollard, direct)
+```mermaid
+graph TD
+    A[AI Agent / MCP Client] -->|stdio JSON-RPC| B[devpod-mcp binary]
+    
+    subgraph "devpod-mcp"
+        B --> C[15 MCP Tools]
+        C --> D[devpod-mcp-core lib]
+    end
+    
+    D -->|subprocess| E[DevPod CLI]
+    D -->|bollard API| F[Docker Engine]
+    
+    E --> G[DevPod Workspace Container]
+    F --> G
 ```
 
 ## MCP Tools
