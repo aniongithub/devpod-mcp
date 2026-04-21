@@ -1,5 +1,7 @@
 # devpod-mcp
 
+[![CI](https://github.com/aniongithub/devpod-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/aniongithub/devpod-mcp/actions/workflows/ci.yml)
+
 An MCP server that wraps the [DevPod](https://devpod.sh/) CLI to give AI coding agents full control over isolated development environments — so work happens inside the right container, not on the host.
 
 
