@@ -1,7 +1,7 @@
 [package]
-name = "devpod-mcp-core"
+name = "devcontainer-mcp-core"
 version = "0.1.0"
-description = "Core library for devpod-mcp: DevPod CLI wrapper and Docker queries"
+description = "Core library for devcontainer-mcp: DevPod/Codespaces CLI wrapper and Docker queries"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -14,3 +14,4 @@ thiserror = { workspace = true }
 bollard = { workspace = true }
 tracing = { workspace = true }
 futures-util = "0.3"
+async-trait = "0.1"

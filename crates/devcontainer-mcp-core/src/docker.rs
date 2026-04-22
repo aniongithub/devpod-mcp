@@ -1,4 +1,6 @@
-use bollard::container::{ListContainersOptions, LogsOptions};
+use bollard::container::{
+    ListContainersOptions, LogsOptions, RemoveContainerOptions, StopContainerOptions,
+};
 use bollard::Docker;
 use futures_util::StreamExt;
 use serde::Serialize;
@@ -118,4 +120,26 @@ pub async fn container_logs(docker: &Docker, container_id: &str, tail: usize) ->
     }
 
     Ok(output)
+}
+
+/// Stop a container by name or ID.
+pub async fn stop_container(docker: &Docker, name_or_id: &str) -> Result<()> {
+    docker
+        .stop_container(name_or_id, Some(StopContainerOptions { t: 10 }))
+        .await?;
+    Ok(())
+}
+
+/// Remove a container by name or ID.
+pub async fn remove_container(docker: &Docker, name_or_id: &str, force: bool) -> Result<()> {
+    docker
+        .remove_container(
+            name_or_id,
+            Some(RemoveContainerOptions {
+                force,
+                ..Default::default()
+            }),
+        )
+        .await?;
+    Ok(())
 }

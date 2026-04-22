@@ -1,7 +1,10 @@
 ---
-name: devpod-mcp
-description: Manage isolated DevPod development environments via MCP tools
+name: devcontainer-mcp
+description: Manage dev container environments via MCP tools (DevPod, devcontainer CLI, Codespaces)
 tools:
+  - auth_status
+  - auth_login
+  - auth_select
   - devpod_up
   - devpod_stop
   - devpod_delete
@@ -17,70 +20,145 @@ tools:
   - devpod_context_use
   - devpod_container_inspect
   - devpod_container_logs
+  - devcontainer_up
+  - devcontainer_exec
+  - devcontainer_build
+  - devcontainer_read_config
+  - devcontainer_stop
+  - devcontainer_remove
+  - devcontainer_status
+  - codespaces_create
+  - codespaces_list
+  - codespaces_ssh
+  - codespaces_stop
+  - codespaces_delete
+  - codespaces_view
+  - codespaces_ports
 ---
 
-# DevPod MCP Skill
+# DevContainer MCP Skill
 
-You have access to `devpod-mcp`, an MCP server that manages isolated development environments via [DevPod](https://devpod.sh/).
+You have access to `devcontainer-mcp`, an MCP server that manages dev container environments across three backends:
+- **DevPod** (`devpod_*` tools) — multi-provider: Docker, K8s, AWS, GCP, etc.
+- **devcontainer CLI** (`devcontainer_*` tools) — local Docker via the official CLI
+- **GitHub Codespaces** (`codespaces_*` tools) — cloud-hosted environments
 
 ## Core Rule
 
-**If a project has `.devcontainer/devcontainer.json`, ALL work MUST happen inside a DevPod workspace — never install dependencies, run builds, or execute code directly on the host.**
+**If a project has `.devcontainer/devcontainer.json`, ALL work MUST happen inside a dev container — never install dependencies, run builds, or execute code directly on the host.**
 
-## Workflow
+## Authentication
 
-### 1. Check for devcontainer config
-Before doing any work on a project, check if `.devcontainer/devcontainer.json` exists.
+**Before using Codespaces tools, you MUST obtain an auth handle.**
 
-### 2. Create or start the workspace
+### 1. Check available accounts
+```
+auth_status(provider: "github")
+→ returns accounts with IDs like "github-aniongithub"
+```
+
+### 2. If multiple accounts, ask the user which one to use
+
+### 3. If no accounts or missing scopes, initiate login
+```
+auth_login(provider: "github", scopes: "codespace")
+→ opens browser, copies device code to clipboard
+→ tell the user: "Approve in the browser, code is on your clipboard"
+```
+
+### 4. Pass the auth handle to all codespaces_* tools
+```
+codespaces_create(auth: "github-aniongithub", repo: "owner/repo", ...)
+```
+
+**The agent never sees raw tokens.** Auth handles are opaque IDs resolved by the MCP server.
+
+Supported auth providers: `github`, `aws`, `azure`, `gcloud`, `kubernetes`
+
+## Choosing a Backend
+
+1. **Local Docker + devcontainer CLI** — simplest for local development, no auth needed
+2. **DevPod** — when you need multi-provider support or the project uses DevPod
+3. **Codespaces** — when you need cloud-hosted environments (requires GitHub auth)
+
+## Workflow: DevPod
+
+### 1. Create or start the workspace
 ```
 devpod_up(args: "/path/to/project --id my-project --provider docker")
 ```
-- Always use `--provider docker` unless the user specifies otherwise.
-- The workspace ID should be a short, descriptive kebab-case name.
 
-### 3. Verify the workspace is running
+### 2. Verify the workspace is running
 ```
 devpod_status(workspace: "my-project")
 ```
-Expect `"state": "Running"`.
 
-### 4. Execute all commands inside the workspace
+### 3. Execute commands inside the workspace
 ```
 devpod_ssh(workspace: "my-project", command: "cargo build")
-devpod_ssh(workspace: "my-project", command: "npm install && npm test")
 ```
-- Use `devpod_ssh` for ALL commands: builds, tests, linting, package installs, etc.
-- Never run these on the host.
 
-### 5. Handle build failures (self-healing)
-If `devpod_up` returns errors in stderr:
-1. Read the error output carefully
-2. Fix the `Dockerfile` or `devcontainer.json` in the project
-3. Call `devpod_up` again — DevPod will rebuild with the fix
-4. Repeat until successful
-
-If `devpod_ssh` commands fail, check `devpod_logs` for container-level issues.
-
-### 6. Stop when done
+### 4. Stop when done
 ```
 devpod_stop(workspace: "my-project")
 ```
 
+## Workflow: devcontainer CLI
+
+### 1. Start the dev container
+```
+devcontainer_up(workspace_folder: "/path/to/project")
+```
+
+### 2. Execute commands
+```
+devcontainer_exec(workspace_folder: "/path/to/project", command: "npm test")
+```
+
+### 3. Stop when done
+```
+devcontainer_stop(workspace_folder: "/path/to/project")
+```
+
+## Workflow: Codespaces
+
+### 1. Authenticate
+```
+auth_status(provider: "github")
+# If no accounts: auth_login(provider: "github", scopes: "codespace")
+# If multiple: ask the user which account
+```
+
+### 2. Create a codespace — ask user for machine type
+```
+codespaces_create(auth: "github-USERNAME", repo: "owner/repo", machine: "basicLinux32gb")
+```
+Machine types: `basicLinux32gb` (2 cores, 8 GB), `standardLinux32gb` (4 cores, 16 GB), `premiumLinux` (8 cores, 32 GB), `largePremiumLinux` (16 cores, 64 GB)
+
+### 3. Execute commands
+```
+codespaces_ssh(auth: "github-USERNAME", codespace: "codespace-name", command: "npm test")
+```
+
+### 4. Stop when done
+```
+codespaces_stop(auth: "github-USERNAME", codespace: "codespace-name")
+```
+
+## Self-Healing
+
+If `devpod_up`, `devcontainer_up`, or `codespaces_create` returns errors:
+1. Read the error output carefully
+2. Fix the `Dockerfile` or `devcontainer.json`
+3. Call the up/create command again
+4. Repeat until successful
+
 ## What NOT to do
 
-- ❌ Do NOT install packages on the host (npm install, pip install, apt install, etc.)
+- ❌ Do NOT install packages on the host
 - ❌ Do NOT run builds on the host
-- ❌ Do NOT modify the host's global config (PATH, env vars, etc.)
-- ❌ Do NOT assume host tools match what the project needs
-- ✅ DO use `devpod_ssh` for everything
+- ❌ Do NOT modify the host's global config
+- ✅ DO authenticate before using codespaces tools
+- ✅ DO ask the user which account/machine type to use
+- ✅ DO use `devpod_ssh`, `devcontainer_exec`, or `codespaces_ssh` for everything
 - ✅ DO check `.devcontainer/devcontainer.json` first
-- ✅ DO return build errors to the user for devcontainer config issues
-
-## Inspecting containers
-
-Use `devpod_container_inspect` and `devpod_container_logs` when you need low-level Docker details (ports, labels, mounts, raw container logs) that `devpod_status` and `devpod_logs` don't cover.
-
-## Managing multiple workspaces
-
-Use `devpod_list` to see all workspaces. Each workspace is independent — you can run multiple projects simultaneously in separate containers.
