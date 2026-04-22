@@ -2,24 +2,47 @@
 
 [![CI](https://github.com/aniongithub/devcontainer-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/aniongithub/devcontainer-mcp/actions/workflows/ci.yml)
 
-A unified MCP server that gives AI coding agents full control over dev container environments across **three backends** — so work happens inside the right container, not on the host.
+**Give your AI agent its own dev environment — not yours.**
+
+`devcontainer-mcp` is an MCP server that lets AI coding agents create, manage, and work inside [dev containers](https://containers.dev/) across three backends: local Docker, [DevPod](https://devpod.sh/), and [GitHub Codespaces](https://github.com/features/codespaces). The agent builds, tests, and ships code in an isolated container — your laptop stays clean.
+
+## The Problem
+
+When AI agents write code, they need to run it somewhere. Today that means your host machine:
+
+- 🔴 **Host contamination** — agents install packages, modify PATH, leave behind build artifacts
+- 🔴 **"Works on my machine"** — agents assume your local toolchain matches production
+- 🔴 **No isolation** — one project's dependencies break another
+- 🔴 **Security risk** — agents run arbitrary commands with your user privileges
+
+## The Solution
+
+The [devcontainer spec](https://containers.dev/) already defines reproducible, container-based dev environments. Every major project ships a `.devcontainer/devcontainer.json`. But AI agents can't use them — until now.
+
+`devcontainer-mcp` exposes **33 MCP tools** that let any AI agent:
+
+1. **Spin up** a dev container from any repo — locally, on a cloud VM, or in Codespaces
+2. **Run commands** inside the container — builds, tests, linting, anything
+3. **Manage the lifecycle** — stop, restart, delete when done
+4. **Authenticate** against cloud providers — GitHub, AWS, Azure, GCP — without ever seeing a raw token
+
+```
+Agent: "Let me build this project..."
+  → auth_status("github") → picks account
+  → codespaces_create(auth: "github-you", repo: "your/repo")
+  → codespaces_ssh(auth: "github-you", codespace: "...", command: "cargo build")
+  → ✅ Built in the cloud. Your laptop did nothing.
+```
 
 ## Quick Install
 
 ```bash
-# Install the MCP server binary
 curl -fsSL https://raw.githubusercontent.com/aniongithub/devcontainer-mcp/main/install.sh | bash
 ```
 
-Backend CLIs (`devpod`, `devcontainer`, `gh`) are detected at runtime — if one is missing, the MCP server returns a helpful error telling you how to install it.
+Backend CLIs (`devpod`, `devcontainer`, `gh`) are detected at runtime — if one is missing, the MCP server returns a helpful error with install instructions.
 
-Binaries are available for **linux-x64**, **linux-arm64**, **darwin-x64**, and **darwin-arm64**.
-
-## Why?
-
-AI coding agents suffer from **Host Contamination** and **Context Drift**. They install packages on the host, assume local dependencies exist, and produce code that works "on my machine" but fails in production.
-
-The [devcontainer spec](https://containers.dev/) solves this with reproducible, container-based environments. **This project** bridges the gap by exposing every dev container operation as MCP tools that AI agents can call directly — across multiple backends.
+Binaries available for **linux-x64**, **linux-arm64**, **darwin-x64**, and **darwin-arm64**.
 
 ## Architecture
 
@@ -28,43 +51,56 @@ graph TD
     A[AI Agent / MCP Client] -->|stdio JSON-RPC| B[devcontainer-mcp]
     
     subgraph "devcontainer-mcp"
-        B --> C[29 MCP Tools]
-        C --> D[devcontainer-mcp-core]
+        B --> C[33 MCP Tools]
+        C --> D[Auth Broker]
+        C --> E[devcontainer-mcp-core]
     end
     
-    D -->|subprocess| E[DevPod CLI]
-    D -->|subprocess| F[devcontainer CLI]
-    D -->|subprocess| G[gh CLI]
-    D -->|bollard API| H[Docker Engine]
+    D -->|opaque handles| C
+    E -->|subprocess| F[DevPod CLI]
+    E -->|subprocess| G[devcontainer CLI]
+    E -->|subprocess| H[gh CLI]
+    E -->|bollard API| I[Docker Engine]
     
-    E --> I[Docker / K8s / Cloud VMs]
-    F --> J[Local Docker]
-    G --> K[GitHub Codespaces]
+    F --> J[Docker / K8s / Cloud VMs]
+    G --> K[Local Docker]
+    H --> L[GitHub Codespaces]
 ```
 
-## Backends
+## Three Backends, One Interface
 
-| Backend | Best for | Requires |
-|---------|----------|----------|
-| **DevPod** (`devpod_*`) | Multi-provider: Docker, K8s, AWS, GCP, etc. | [DevPod CLI](https://devpod.sh) |
-| **devcontainer CLI** (`devcontainer_*`) | Local Docker development | [@devcontainers/cli](https://github.com/devcontainers/cli) |
-| **Codespaces** (`codespaces_*`) | GitHub-hosted cloud environments | [gh CLI](https://cli.github.com/) + auth |
+| Backend | Best for | Requires | Auth needed? |
+|---------|----------|----------|:---:|
+| **devcontainer CLI** (`devcontainer_*`) | Local Docker — fast, simple | [@devcontainers/cli](https://github.com/devcontainers/cli) + Docker | No |
+| **DevPod** (`devpod_*`) | Multi-cloud: Docker, K8s, AWS, Azure, GCP | [DevPod CLI](https://devpod.sh) | Optional (cloud providers) |
+| **Codespaces** (`codespaces_*`) | GitHub-hosted cloud environments | [gh CLI](https://cli.github.com/) | Yes (`auth` handle) |
 
-## MCP Tools
+## Auth Broker
 
-### Auth (3 tools)
+The agent never sees raw tokens. Instead:
+
+1. **`auth_status(provider)`** — list available accounts and scopes
+2. **`auth_login(provider, scopes?)`** — initiate login, opens browser, handles device codes
+3. **`auth_select(id)`** — switch the active account
+4. **`auth_logout(id)`** — revoke credentials
+
+Codespaces tools require an auth handle (e.g. `"github-aniongithub"`). The MCP server resolves it to the real token on each call via the CLI's native keyring.
+
+Supported providers: **GitHub**, **AWS**, **Azure**, **GCP**, **Kubernetes**
+
+## MCP Tools (33 total)
+
+### Auth (4 tools)
 
 | Tool | Description |
 |------|-------------|
-| `auth_status` | Check auth status for a provider. Returns available auth handles and accounts. |
-| `auth_login` | Initiate login flow — opens browser, copies device code to clipboard. |
-| `auth_select` | Verify an auth handle is still valid. |
-
-Codespaces tools require a GitHub auth handle (e.g. `"github-aniongithub"`). Get one via `auth_status` or `auth_login`, then pass it as the `auth` parameter. The agent never sees raw tokens.
+| `auth_status` | Check auth for a provider — returns handles, accounts, scopes |
+| `auth_login` | Initiate login or refresh scopes — browser + device code flow |
+| `auth_select` | Switch the active account for a provider |
+| `auth_logout` | Revoke credentials for an account |
 
 ### DevPod (15 tools)
 
-#### Workspace Lifecycle
 | Tool | Description |
 |------|-------------|
 | `devpod_up` | Create and start a workspace from a git URL, local path, or image |
@@ -73,37 +109,21 @@ Codespaces tools require a GitHub auth handle (e.g. `"github-aniongithub"`). Get
 | `devpod_build` | Build a workspace image without starting it |
 | `devpod_status` | Get workspace state (`Running`, `Stopped`, `Busy`, `NotFound`) |
 | `devpod_list` | List all workspaces with IDs, sources, providers, and status |
-
-#### Command Execution
-| Tool | Description |
-|------|-------------|
 | `devpod_ssh` | Execute a command inside a workspace via SSH |
-
-#### Provider Management
-| Tool | Description |
-|------|-------------|
+| `devpod_logs` | Get workspace logs |
 | `devpod_provider_list` | List all configured providers |
 | `devpod_provider_add` | Add a new provider |
 | `devpod_provider_delete` | Remove a provider |
-
-#### Context Management
-| Tool | Description |
-|------|-------------|
 | `devpod_context_list` | List all contexts |
 | `devpod_context_use` | Switch to a different context |
-
-#### Logs & Docker
-| Tool | Description |
-|------|-------------|
-| `devpod_logs` | Get workspace logs |
-| `devpod_container_inspect` | Direct Docker inspect for labels, ports, mounts |
+| `devpod_container_inspect` | Docker inspect — labels, ports, mounts, state |
 | `devpod_container_logs` | Stream container logs via Docker API |
 
 ### devcontainer CLI (7 tools)
 
 | Tool | Description |
 |------|-------------|
-| `devcontainer_up` | Create and start a dev container from a workspace folder |
+| `devcontainer_up` | Create and start a local dev container |
 | `devcontainer_exec` | Execute a command inside a running dev container |
 | `devcontainer_build` | Build a dev container image |
 | `devcontainer_read_config` | Read merged devcontainer configuration as JSON |
@@ -111,7 +131,7 @@ Codespaces tools require a GitHub auth handle (e.g. `"github-aniongithub"`). Get
 | `devcontainer_remove` | Remove a dev container and its resources |
 | `devcontainer_status` | Get dev container state by workspace folder |
 
-### GitHub Codespaces (7 tools)
+### GitHub Codespaces (7 tools) — require `auth` handle
 
 | Tool | Description |
 |------|-------------|
@@ -125,7 +145,7 @@ Codespaces tools require a GitHub auth handle (e.g. `"github-aniongithub"`). Get
 
 ## MCP Server Configuration
 
-### Claude Desktop
+### Claude Desktop / Copilot / Cursor
 
 ```json
 {
@@ -138,36 +158,17 @@ Codespaces tools require a GitHub auth handle (e.g. `"github-aniongithub"`). Get
 }
 ```
 
-### Cursor
-
-Add to your MCP settings:
-```json
-{
-  "devcontainer-mcp": {
-    "command": "devcontainer-mcp",
-    "args": ["serve"]
-  }
-}
-```
-
 ## Prerequisites
 
 Install backend CLIs as needed — the MCP server detects them at runtime and returns helpful errors if missing:
 
-- **DevPod**: [DevPod CLI](https://devpod.sh/docs/getting-started/install) + [Docker](https://docs.docker.com/get-docker/) (or another provider)
 - **devcontainer CLI**: `npm install -g @devcontainers/cli` + [Docker](https://docs.docker.com/get-docker/)
+- **DevPod**: [DevPod CLI](https://devpod.sh/docs/getting-started/install) + Docker (or another provider)
 - **Codespaces**: [GitHub CLI](https://cli.github.com/) — auth is handled by the `auth_login` tool
 
-## Self-Healing Loop
+## Self-Healing
 
-When `devpod_up` or `devcontainer_up` fails (bad Dockerfile, missing dependency, etc.), the full build output — including error messages — is returned to the AI agent. The agent can then:
-
-1. Read the error from `stderr`
-2. Fix the `Dockerfile` or `devcontainer.json`
-3. Call the up command again
-4. Repeat until the environment builds successfully
-
-This makes the dev environment a **dynamic, agent-managed asset** rather than a static prerequisite.
+When `devcontainer_up`, `devpod_up`, or `codespaces_create` fails, the full build output (including errors) is returned to the agent. The agent can read the error, fix the `Dockerfile` or `devcontainer.json`, and retry — making the dev environment a **dynamic, agent-managed asset** rather than a static prerequisite.
 
 ## Development
 
@@ -188,7 +189,7 @@ devpod ssh devcontainer-mcp --command "cd /workspaces/devcontainer-mcp && cargo 
 ### CI/CD
 
 - **Pull Requests** — `cargo check`, `cargo test`, `cargo clippy`, `cargo fmt` run automatically
-- **Releases** — Creating a GitHub release builds binaries for all 4 platforms and uploads them as release assets
+- **Releases** — Creating a GitHub release builds binaries for all 4 platforms
 
 ## License
 
