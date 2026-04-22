@@ -164,18 +164,28 @@ else:
 echo ""
 echo "==> Configuring MCP clients..."
 
-# GitHub Copilot CLI
-configure_mcp_client "${HOME}/.copilot/mcp-config.json" "GitHub Copilot"
-
-# VS Code
-if [[ "$(uname -s)" == "Darwin" ]]; then
-  configure_mcp_client "${HOME}/Library/Application Support/Code/User/mcp.json" "VS Code"
-elif [[ "$(uname -s)" == "Linux" ]]; then
-  configure_mcp_client "${HOME}/.config/Code/User/mcp.json" "VS Code"
+# GitHub Copilot CLI — check if .copilot dir exists
+if [ -d "${HOME}/.copilot" ]; then
+  configure_mcp_client "${HOME}/.copilot/mcp-config.json" "GitHub Copilot"
 fi
 
-# Cursor
-configure_mcp_client "${HOME}/.cursor/mcp.json" "Cursor"
+# VS Code — check if VS Code config dir exists
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  VSCODE_DIR="${HOME}/Library/Application Support/Code/User"
+else
+  VSCODE_DIR="${HOME}/.config/Code/User"
+fi
+if [ -d "$VSCODE_DIR" ]; then
+  configure_mcp_client "${VSCODE_DIR}/mcp.json" "VS Code"
+fi
+
+# Cursor — only if Cursor is installed
+if [ -d "${HOME}/.cursor" ]; then
+  configure_mcp_client "${HOME}/.cursor/mcp.json" "Cursor"
+fi
+
+# Claude Code — ~/.claude.json
+configure_mcp_client "${HOME}/.claude.json" "Claude Code"
 
 echo ""
 echo "Done! devcontainer-mcp is ready to use."
