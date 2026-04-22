@@ -6,6 +6,7 @@
 # DevPod / DevContainer internals
 .devcontainer/.devpod-internal/
 .devcontainer/devcontainer-lock.json
+.devcontainer/gh.env
 
 # IDE
 .idea/
