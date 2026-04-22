@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>devcontainer-mcp — Give your AI agent its own dev environment</title>
+  <meta name="description" content="An MCP server that lets AI coding agents create, manage, and work inside dev containers across local Docker, DevPod, and GitHub Codespaces.">
+  <meta property="og:title" content="devcontainer-mcp">
+  <meta property="og:description" content="Give your AI agent its own dev environment — not yours.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://aniongithub.github.io/devcontainer-mcp/">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Nav -->
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="#" class="nav-logo">
+        <span class="logo-icon">⬡</span>
+        <span>devcontainer-mcp</span>
+      </a>
+      <button class="nav-toggle" onclick="document.querySelector('.nav-links').classList.toggle('open')" aria-label="Menu">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+      <div class="nav-links">
+        <a href="#">Home</a>
+        <a href="#" onclick="window.scrollTo({top:0,behavior:'smooth'});return false;">Get Started</a>
+        <a href="#why">Why</a>
+        <a href="#backends">Backends</a>
+        <a href="#auth">Auth</a>
+        <a href="#tools">Tools</a>
+        <a href="https://github.com/aniongithub/devcontainer-mcp" class="nav-github" target="_blank" rel="noopener">
+          GitHub ↗
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="hero-badges">
+        <div class="hero-badge">Open Source MCP Server</div>
+        <a class="github-button" href="https://github.com/aniongithub/devcontainer-mcp" data-size="large" data-icon="octicon-star" data-show-count="true" aria-label="Star aniongithub/devcontainer-mcp on GitHub">Star</a>
+      </div>
+      <h1>Give your AI agent its own<br>dev environment — <span class="gradient-text">not yours.</span></h1>
+      <p class="hero-sub">
+        33 MCP tools that let AI coding agents create, manage, and work inside
+        <a href="https://containers.dev/">dev containers</a>, keeping your machine clean
+        and your environment reproducible and deploy-friendly. Use local Docker,
+        <a href="https://github.com/features/codespaces">GitHub Codespaces</a>,
+        Azure, AWS, Google Cloud or Kubernetes seamlessly!
+      </p>
+      <div class="hero-cta">
+        <div class="install-box">
+          <code id="install-cmd">curl -fsSL https://github.com/aniongithub/devcontainer-mcp/releases/latest/download/install.sh | bash</code>
+          <button class="copy-btn" onclick="copyInstall(this)" title="Copy to clipboard">
+            <svg class="copy-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            <svg class="check-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="hero-works-with">
+        <span class="works-with-label">and start coding with</span>
+        <div class="client-pills">
+          <span class="client-pill">
+            <img src="https://cdn.svglogos.dev/logos/github-copilot.svg" alt="">
+            GitHub Copilot
+          </span>
+          <span class="client-pill">
+            <img src="https://cdn.svglogos.dev/logos/claude.svg" alt="">
+            Claude
+          </span>
+          <span class="client-pill">
+            <img src="https://svgl.app/library/cursor_light.svg" alt="">
+            Cursor
+          </span>
+        </div>
+      </div>
+      <div class="hero-platforms">
+        linux-x64 · linux-arm64 · darwin-x64 · darwin-arm64
+      </div>
+    </div>
+  </section>
+
+  <!-- Why -->
+  <section class="section" id="why">
+    <div class="section-inner">
+      <h2 class="section-title">Why?</h2>
+      <p class="section-sub">AI agents need to run code somewhere. Today that's your machine. It shouldn't be.</p>
+      <div class="two-col">
+        <div class="col problem">
+          <h2>The problem</h2>
+          <p>When AI agents write code, they run it on <em>your</em> machine:</p>
+          <ul>
+            <li><span class="icon-bad">✗</span> Install packages on the host</li>
+            <li><span class="icon-bad">✗</span> Assume local toolchains match production</li>
+            <li><span class="icon-bad">✗</span> Break other projects' dependencies</li>
+            <li><span class="icon-bad">✗</span> Run arbitrary commands with your privileges</li>
+            <li><span class="icon-bad">✗</span> Constrained by your local hardware</li>
+          </ul>
+        </div>
+        <div class="col solution">
+          <h2>The solution</h2>
+          <p>Give the agent a container. It builds <em>there</em>:</p>
+          <ul>
+            <li><span class="icon-good">✓</span> Isolated, reproducible environment</li>
+            <li><span class="icon-good">✓</span> Same container spec as production</li>
+            <li><span class="icon-good">✓</span> Nothing installed on the host</li>
+            <li><span class="icon-good">✓</span> Runs locally or on the cloud in an isolated environment</li>
+            <li><span class="icon-good">✓</span> Scale up to match your needs without any compromise</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How it works -->
+  <section class="section section-dark">
+    <div class="section-inner">
+      <h2 class="section-title">How it works</h2>
+      <p class="section-sub">The agent orchestrates everything through MCP tools. You just approve.</p>
+      <div class="demo-container">
+          <img src="screengrabs/devcontainer-mcp-local-docker.gif" alt="Local Docker workflow demo" class="demo-gif">
+        </div>      </div>
+    </div>
+  </section>
+
+  <!-- Backends -->
+  <section class="section" id="backends">
+    <div class="section-inner">
+      <h2 class="section-title">Work anywhere — or right here</h2>
+      <p class="section-sub">Let your agent work beyond the confines of your hardware, or within it.</p>
+      <div class="demo-container" style="margin-bottom:2rem">
+          <img src="screengrabs/devcontainer-mcp-codespaces.gif" alt="Codespaces workflow demo" class="demo-gif">
+        </div>
+      <div class="cards">
+        <div class="card">
+          <img src="https://cdn.svglogos.dev/logos/docker.svg" alt="Docker" class="card-logo">
+          <h3>Local Docker</h3>
+          <p class="card-tag">devcontainer CLI</p>
+          <p>Fast, simple, no cloud account needed. Perfect for local development with the official devcontainer spec.</p>
+        </div>
+        <div class="card">
+          <img src="https://devpod.sh/assets/devpod.svg" alt="DevPod" class="card-logo">
+          <h3>DevPod</h3>
+          <p class="card-tag">Multi-provider</p>
+          <p>Docker, Kubernetes, AWS, Azure, GCP — one tool. DevPod handles provisioning, we handle orchestration.</p>
+        </div>
+        <div class="card">
+          <img src="https://cdn.svglogos.dev/logos/github.svg" alt="GitHub Codespaces" class="card-logo">
+          <h3>GitHub Codespaces</h3>
+          <p class="card-tag">Cloud-hosted</p>
+          <p>Full VS Code environment in the cloud. Prebuilds, fast startup, managed by GitHub. Just bring an auth handle.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Auth broker -->
+  <section class="section section-dark" id="auth">
+    <div class="section-inner">
+      <h2 class="section-title">Built-in auth broker</h2>
+      <p class="section-sub">The agent manages credentials without ever seeing a token.</p>
+      <div class="auth-flow">
+        <div class="auth-step">
+          <div class="auth-num">1</div>
+          <div>
+            <strong>Discover accounts</strong>
+            <code>auth_status("github")</code>
+            <p>Lists all keyring accounts with scopes</p>
+          </div>
+        </div>
+        <div class="auth-step">
+          <div class="auth-num">2</div>
+          <div>
+            <strong>Agent asks, you pick</strong>
+            <p>"You have 2 GitHub accounts. Which one?"</p>
+          </div>
+        </div>
+        <div class="auth-step">
+          <div class="auth-num">3</div>
+          <div>
+            <strong>Opaque handle, no token</strong>
+            <code>codespaces_create(auth: "github-you", ...)</code>
+            <p>MCP server resolves the handle on every call</p>
+          </div>
+        </div>
+      </div>
+      <div class="auth-providers">
+        <span class="provider-badge"><img src="https://cdn.svglogos.dev/logos/github.svg" alt="" class="badge-logo">GitHub</span>
+        <span class="provider-badge"><img src="https://cdn.svglogos.dev/logos/aws.svg" alt="" class="badge-logo">AWS</span>
+        <span class="provider-badge"><img src="https://cdn.svglogos.dev/logos/microsoft-azure.svg" alt="" class="badge-logo">Azure</span>
+        <span class="provider-badge"><img src="https://cdn.svglogos.dev/logos/google-cloud.svg" alt="" class="badge-logo">GCP</span>
+        <span class="provider-badge"><img src="https://cdn.svglogos.dev/logos/kubernetes.svg" alt="" class="badge-logo">Kubernetes</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tools -->
+  <section class="section" id="tools">
+    <div class="section-inner">
+      <h2 class="section-title">33 MCP tools</h2>
+      <p class="section-sub">Everything an agent needs to manage dev containers end-to-end.</p>
+      <div class="tools-grid">
+        <div class="tool-group">
+          <h3>Auth <span class="tool-count">4</span></h3>
+          <ul>
+            <li>auth_status</li>
+            <li>auth_login</li>
+            <li>auth_select</li>
+            <li>auth_logout</li>
+          </ul>
+        </div>
+        <div class="tool-group">
+          <h3>DevPod <span class="tool-count">15</span></h3>
+          <ul>
+            <li>devpod_up / stop / delete</li>
+            <li>devpod_build / status / list</li>
+            <li>devpod_ssh</li>
+            <li>devpod_logs</li>
+            <li>devpod_provider_list / add / delete</li>
+            <li>devpod_context_list / use</li>
+            <li>devpod_container_inspect / logs</li>
+          </ul>
+        </div>
+        <div class="tool-group">
+          <h3>devcontainer CLI <span class="tool-count">7</span></h3>
+          <ul>
+            <li>devcontainer_up / stop / remove</li>
+            <li>devcontainer_exec</li>
+            <li>devcontainer_build</li>
+            <li>devcontainer_read_config</li>
+            <li>devcontainer_status</li>
+          </ul>
+        </div>
+        <div class="tool-group">
+          <h3>Codespaces <span class="tool-count">7</span></h3>
+          <ul>
+            <li>codespaces_create / stop / delete</li>
+            <li>codespaces_list / view</li>
+            <li>codespaces_ssh</li>
+            <li>codespaces_ports</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-left">
+        <span class="logo-icon">⬡</span> devcontainer-mcp
+        <span class="footer-sep">·</span>
+        MIT License
+      </div>
+      <div class="footer-right">
+        <a href="https://github.com/aniongithub/devcontainer-mcp">GitHub</a>
+        <a href="https://github.com/aniongithub/devcontainer-mcp/issues">Issues</a>
+        <a href="https://github.com/aniongithub/devcontainer-mcp/releases">Releases</a>
+      </div>
+    </div>
+  </footer>
+
+  <script async defer src="https://buttons.github.io/buttons.js"></script>
+  <script>
+    function copyInstall(btn) {
+      const text = document.getElementById('install-cmd').textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        btn.querySelector('.copy-icon').style.display = 'none';
+        btn.querySelector('.check-icon').style.display = 'block';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.querySelector('.copy-icon').style.display = 'block';
+          btn.querySelector('.check-icon').style.display = 'none';
+          btn.classList.remove('copied');
+        }, 2000);
+      });
+    }
+  </script>
+</body>
+</html>
