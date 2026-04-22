@@ -120,13 +120,62 @@ command -v devpod       >/dev/null 2>&1 && echo "  ✓ devpod"       || echo "  
 command -v devcontainer >/dev/null 2>&1 && echo "  ✓ devcontainer"  || echo "  ✗ devcontainer   — npm install -g @devcontainers/cli"
 command -v gh           >/dev/null 2>&1 && echo "  ✓ gh (codespaces)" || echo "  ✗ gh (codespaces) — https://cli.github.com/"
 
+# ---------------------------------------------------------------------------
+# Auto-configure MCP clients
+# ---------------------------------------------------------------------------
+
+configure_mcp_client() {
+  local config_file="$1"
+  local client_name="$2"
+
+  if [ ! -f "$config_file" ]; then
+    mkdir -p "$(dirname "$config_file")"
+    cat > "$config_file" << MCPEOF
+{
+  "mcpServers": {
+    "devcontainer-mcp": {
+      "command": "${INSTALL_DIR}/devcontainer-mcp",
+      "args": ["serve"]
+    }
+  }
+}
+MCPEOF
+    echo "  ✓ ${client_name} — created ${config_file}"
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -c "
+import json
+path = '${config_file}'
+with open(path) as f:
+    data = json.load(f)
+servers = data.setdefault('mcpServers', {})
+if 'devcontainer-mcp' not in servers:
+    servers['devcontainer-mcp'] = {'command': '${INSTALL_DIR}/devcontainer-mcp', 'args': ['serve']}
+    with open(path, 'w') as f:
+        json.dump(data, f, indent=2)
+    print('  ✓ ${client_name} — added to ${config_file}')
+else:
+    print('  ✓ ${client_name} — already configured')
+" 2>/dev/null || echo "  ⚠ ${client_name} — could not update ${config_file}"
+  else
+    echo "  ⚠ ${client_name} — exists but python3 not available to merge"
+  fi
+}
+
 echo ""
-echo "Done! Configure your MCP client:"
-echo '  {'
-echo '    "mcpServers": {'
-echo '      "devcontainer-mcp": {'
-echo "        \"command\": \"${INSTALL_DIR}/devcontainer-mcp\","
-echo '        "args": ["serve"]'
-echo '      }'
-echo '    }'
-echo '  }'
+echo "==> Configuring MCP clients..."
+
+# GitHub Copilot CLI
+configure_mcp_client "${HOME}/.copilot/mcp-config.json" "GitHub Copilot"
+
+# VS Code
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  configure_mcp_client "${HOME}/Library/Application Support/Code/User/mcp.json" "VS Code"
+elif [[ "$(uname -s)" == "Linux" ]]; then
+  configure_mcp_client "${HOME}/.config/Code/User/mcp.json" "VS Code"
+fi
+
+# Cursor
+configure_mcp_client "${HOME}/.cursor/mcp.json" "Cursor"
+
+echo ""
+echo "Done! devcontainer-mcp is ready to use."
