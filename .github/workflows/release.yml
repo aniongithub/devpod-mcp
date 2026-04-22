@@ -32,20 +32,19 @@ jobs:
             CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
               cargo build --release --target aarch64-unknown-linux-gnu -p devcontainer-mcp
 
-            # Package as tarballs (use workspace dir so host can access them)
-            mkdir -p /workspaces/devcontainer-mcp/release
-            cd target/x86_64-unknown-linux-gnu/release && tar czf /workspaces/devcontainer-mcp/release/devcontainer-mcp-linux-x64.tar.gz devcontainer-mcp && cd -
-            cd target/aarch64-unknown-linux-gnu/release && tar czf /workspaces/devcontainer-mcp/release/devcontainer-mcp-linux-arm64.tar.gz devcontainer-mcp && cd -
+            # Package as tarballs
+            tar czf devcontainer-mcp-linux-x64.tar.gz -C target/x86_64-unknown-linux-gnu/release devcontainer-mcp
+            tar czf devcontainer-mcp-linux-arm64.tar.gz -C target/aarch64-unknown-linux-gnu/release devcontainer-mcp
 
       - name: Upload linux-x64
         uses: softprops/action-gh-release@v3
         with:
-          files: release/devcontainer-mcp-linux-x64.tar.gz
+          files: devcontainer-mcp-linux-x64.tar.gz
 
       - name: Upload linux-arm64
         uses: softprops/action-gh-release@v3
         with:
-          files: release/devcontainer-mcp-linux-arm64.tar.gz
+          files: devcontainer-mcp-linux-arm64.tar.gz
 
   build-macos:
     name: Build ${{ matrix.artifact }}
