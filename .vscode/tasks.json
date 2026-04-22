@@ -3,9 +3,10 @@
   "tasks": [
     {
       "label": "Build",
-      "type": "cargo",
-      "command": "build",
+      "type": "shell",
+      "command": "cargo",
       "args": [
+        "build",
         "--release",
         "-p",
         "devcontainer-mcp"

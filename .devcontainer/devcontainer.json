@@ -3,10 +3,6 @@
   "build": {
     "dockerfile": "Dockerfile"
   },
-  "runArgs": [
-    "--env-file", ".devcontainer/gh.env"
-  ],
-  "initializeCommand": ".devcontainer/initialize.sh",
   "remoteUser": "vscode",
   "features": {
     "ghcr.io/devcontainers/features/rust:1": {

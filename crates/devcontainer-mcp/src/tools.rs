@@ -1,7 +1,7 @@
 use rmcp::model::ServerInfo;
 use rmcp::{tool, ServerHandler};
 
-use devcontainer_mcp_core::{cli::CliOutput, codespaces, devcontainer, devpod, docker};
+use devcontainer_mcp_core::{auth, cli::CliOutput, codespaces, devcontainer, devpod, docker};
 
 #[derive(Debug, Clone)]
 pub struct DevContainerMcp;
@@ -476,15 +476,95 @@ impl DevContainerMcp {
     }
 
     // =======================================================================
+    // Auth tools
+    // =======================================================================
+
+    #[tool(
+        name = "auth_status",
+        description = "Check authentication status for a provider. Returns available auth handles and account info. Providers: 'github', 'aws', 'azure', 'gcloud', 'kubernetes'."
+    )]
+    async fn auth_status(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "Auth provider name (e.g. 'github', 'aws', 'azure', 'gcloud')")]
+        provider: String,
+    ) -> String {
+        match auth::get_provider(&provider) {
+            Some(p) => match p.status().await {
+                Ok(status) => {
+                    serde_json::to_string(&status).unwrap_or_else(|e| format!("Error: {e}"))
+                }
+                Err(e) => format!("Error: {e}"),
+            },
+            None => format!("Unknown auth provider: {provider}"),
+        }
+    }
+
+    #[tool(
+        name = "auth_login",
+        description = "Initiate authentication for a provider. Opens browser, copies device code to clipboard, and waits for approval. Returns an auth handle on success."
+    )]
+    async fn auth_login(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "Auth provider name (e.g. 'github')")]
+        provider: String,
+        #[tool(param)]
+        #[schemars(
+            description = "Additional OAuth scopes to request (e.g. 'codespace' for GitHub)"
+        )]
+        scopes: Option<String>,
+    ) -> String {
+        match auth::get_provider(&provider) {
+            Some(p) => match p.login(scopes.as_deref()).await {
+                Ok(result) => {
+                    serde_json::to_string(&result).unwrap_or_else(|e| format!("Error: {e}"))
+                }
+                Err(e) => format!("Error: {e}"),
+            },
+            None => format!("Unknown auth provider: {provider}"),
+        }
+    }
+
+    #[tool(
+        name = "auth_select",
+        description = "Verify that an auth handle is still valid. Returns account info if valid, null if expired/invalid."
+    )]
+    async fn auth_select(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "Auth handle to verify (e.g. 'github-aniongithub', 'aws-prod')")]
+        id: String,
+    ) -> String {
+        let provider_name = auth::provider_from_handle(&id).unwrap_or("unknown");
+        match auth::get_provider(provider_name) {
+            Some(p) => match p.verify(&id).await {
+                Ok(Some(account)) => {
+                    serde_json::to_string(&account).unwrap_or_else(|e| format!("Error: {e}"))
+                }
+                Ok(None) => format!("Auth handle not valid: {id}"),
+                Err(e) => format!("Error: {e}"),
+            },
+            None => format!("Unknown auth provider in handle: {id}"),
+        }
+    }
+
+    // =======================================================================
     // GitHub Codespaces tools
     // =======================================================================
 
     #[tool(
         name = "codespaces_create",
-        description = "Create a new GitHub Codespace for a repository. Requires the gh CLI authenticated with the codespace scope."
+        description = "Create a new GitHub Codespace for a repository. Requires a GitHub auth handle (get one via auth_status or auth_login)."
     )]
+    #[allow(clippy::too_many_arguments)]
     async fn codespaces_create(
         &self,
+        #[tool(param)]
+        #[schemars(
+            description = "GitHub auth handle from auth_status/auth_login (e.g. 'github-aniongithub')"
+        )]
+        auth: String,
         #[tool(param)]
         #[schemars(description = "Repository in owner/repo format")]
         repo: String,
@@ -492,7 +572,9 @@ impl DevContainerMcp {
         #[schemars(description = "Branch to create the codespace from")]
         branch: Option<String>,
         #[tool(param)]
-        #[schemars(description = "Machine type (e.g. 'basicLinux', 'standardLinux')")]
+        #[schemars(
+            description = "Machine type — ask the user. Options: 'basicLinux32gb' (2 cores, 8 GB RAM), 'standardLinux32gb' (4 cores, 16 GB RAM), 'premiumLinux' (8 cores, 32 GB RAM), 'largePremiumLinux' (16 cores, 64 GB RAM)"
+        )]
         machine: Option<String>,
         #[tool(param)]
         #[schemars(description = "Path to devcontainer.json within the repo")]
@@ -504,7 +586,12 @@ impl DevContainerMcp {
         #[schemars(description = "Idle timeout before auto-stop, e.g. '10m', '1h'")]
         idle_timeout: Option<String>,
     ) -> String {
+        let env = match auth::resolve_handle_env(&auth).await {
+            Ok(e) => e,
+            Err(e) => return format!("Auth error: {e}"),
+        };
         match codespaces::create(
+            &env,
             &repo,
             branch.as_deref(),
             machine.as_deref(),
@@ -521,15 +608,22 @@ impl DevContainerMcp {
 
     #[tool(
         name = "codespaces_list",
-        description = "List your GitHub Codespaces. Returns JSON with name, state, repository, and machine info."
+        description = "List your GitHub Codespaces. Requires a GitHub auth handle."
     )]
     async fn codespaces_list(
         &self,
         #[tool(param)]
+        #[schemars(description = "GitHub auth handle (e.g. 'github-aniongithub')")]
+        auth: String,
+        #[tool(param)]
         #[schemars(description = "Filter by repository (owner/repo format)")]
         repo: Option<String>,
     ) -> String {
-        match codespaces::list(repo.as_deref()).await {
+        let env = match auth::resolve_handle_env(&auth).await {
+            Ok(e) => e,
+            Err(e) => return format!("Auth error: {e}"),
+        };
+        match codespaces::list(&env, repo.as_deref()).await {
             Ok(output) => format_output(&output),
             Err(e) => format!("Error: {e}"),
         }
@@ -537,10 +631,13 @@ impl DevContainerMcp {
 
     #[tool(
         name = "codespaces_ssh",
-        description = "Execute a command inside a GitHub Codespace via SSH. Returns stdout, stderr, and exit code."
+        description = "Execute a command inside a GitHub Codespace via SSH. Requires a GitHub auth handle."
     )]
     async fn codespaces_ssh(
         &self,
+        #[tool(param)]
+        #[schemars(description = "GitHub auth handle (e.g. 'github-aniongithub')")]
+        auth: String,
         #[tool(param)]
         #[schemars(description = "Codespace name (from codespaces_list or codespaces_create)")]
         codespace: String,
@@ -548,7 +645,11 @@ impl DevContainerMcp {
         #[schemars(description = "Command to execute inside the codespace")]
         command: String,
     ) -> String {
-        match codespaces::ssh_exec(&codespace, &command).await {
+        let env = match auth::resolve_handle_env(&auth).await {
+            Ok(e) => e,
+            Err(e) => return format!("Auth error: {e}"),
+        };
+        match codespaces::ssh_exec(&env, &codespace, &command).await {
             Ok(output) => format_output(&output),
             Err(e) => format!("Error: {e}"),
         }
@@ -556,15 +657,22 @@ impl DevContainerMcp {
 
     #[tool(
         name = "codespaces_stop",
-        description = "Stop a running GitHub Codespace."
+        description = "Stop a running GitHub Codespace. Requires a GitHub auth handle."
     )]
     async fn codespaces_stop(
         &self,
         #[tool(param)]
+        #[schemars(description = "GitHub auth handle (e.g. 'github-aniongithub')")]
+        auth: String,
+        #[tool(param)]
         #[schemars(description = "Codespace name")]
         codespace: String,
     ) -> String {
-        match codespaces::stop(&codespace).await {
+        let env = match auth::resolve_handle_env(&auth).await {
+            Ok(e) => e,
+            Err(e) => return format!("Auth error: {e}"),
+        };
+        match codespaces::stop(&env, &codespace).await {
             Ok(output) => format_output(&output),
             Err(e) => format!("Error: {e}"),
         }
@@ -572,10 +680,13 @@ impl DevContainerMcp {
 
     #[tool(
         name = "codespaces_delete",
-        description = "Delete a GitHub Codespace. Stops it first if running."
+        description = "Delete a GitHub Codespace. Requires a GitHub auth handle."
     )]
     async fn codespaces_delete(
         &self,
+        #[tool(param)]
+        #[schemars(description = "GitHub auth handle (e.g. 'github-aniongithub')")]
+        auth: String,
         #[tool(param)]
         #[schemars(description = "Codespace name")]
         codespace: String,
@@ -583,7 +694,11 @@ impl DevContainerMcp {
         #[schemars(description = "Force delete even with unsaved changes")]
         force: Option<bool>,
     ) -> String {
-        match codespaces::delete(&codespace, force.unwrap_or(false)).await {
+        let env = match auth::resolve_handle_env(&auth).await {
+            Ok(e) => e,
+            Err(e) => return format!("Auth error: {e}"),
+        };
+        match codespaces::delete(&env, &codespace, force.unwrap_or(false)).await {
             Ok(output) => format_output(&output),
             Err(e) => format!("Error: {e}"),
         }
@@ -591,15 +706,22 @@ impl DevContainerMcp {
 
     #[tool(
         name = "codespaces_view",
-        description = "View detailed information about a GitHub Codespace. Returns JSON with state, machine, config, and timing info."
+        description = "View detailed information about a GitHub Codespace. Requires a GitHub auth handle."
     )]
     async fn codespaces_view(
         &self,
         #[tool(param)]
+        #[schemars(description = "GitHub auth handle (e.g. 'github-aniongithub')")]
+        auth: String,
+        #[tool(param)]
         #[schemars(description = "Codespace name")]
         codespace: String,
     ) -> String {
-        match codespaces::view(&codespace).await {
+        let env = match auth::resolve_handle_env(&auth).await {
+            Ok(e) => e,
+            Err(e) => return format!("Auth error: {e}"),
+        };
+        match codespaces::view(&env, &codespace).await {
             Ok(output) => format_output(&output),
             Err(e) => format!("Error: {e}"),
         }
@@ -607,15 +729,22 @@ impl DevContainerMcp {
 
     #[tool(
         name = "codespaces_ports",
-        description = "List forwarded ports for a GitHub Codespace. Returns JSON with port numbers, visibility, and browse URLs."
+        description = "List forwarded ports for a GitHub Codespace. Requires a GitHub auth handle."
     )]
     async fn codespaces_ports(
         &self,
         #[tool(param)]
+        #[schemars(description = "GitHub auth handle (e.g. 'github-aniongithub')")]
+        auth: String,
+        #[tool(param)]
         #[schemars(description = "Codespace name")]
         codespace: String,
     ) -> String {
-        match codespaces::ports(&codespace).await {
+        let env = match auth::resolve_handle_env(&auth).await {
+            Ok(e) => e,
+            Err(e) => return format!("Auth error: {e}"),
+        };
+        match codespaces::ports(&env, &codespace).await {
             Ok(output) => format_output(&output),
             Err(e) => format!("Error: {e}"),
         }

@@ -1,4 +1,5 @@
 use serde::Serialize;
+use std::collections::HashMap;
 use std::process::Stdio;
 use tokio::process::Command;
 
@@ -43,19 +44,32 @@ impl CliBinary {
 /// Run a CLI command, capturing stdout/stderr/exit_code.
 /// If `parse_json` is true, attempts to parse stdout as JSON.
 pub async fn run_cli(binary: &CliBinary, args: &[&str], parse_json: bool) -> Result<CliOutput> {
-    let output = Command::new(binary.command_name())
-        .args(args)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-        .await
-        .map_err(|e| {
-            if e.kind() == std::io::ErrorKind::NotFound {
-                binary.not_found_error()
-            } else {
-                Error::Io(e)
-            }
-        })?;
+    run_cli_with_env(binary, args, parse_json, None).await
+}
+
+/// Run a CLI command with optional environment variable overrides.
+pub async fn run_cli_with_env(
+    binary: &CliBinary,
+    args: &[&str],
+    parse_json: bool,
+    env: Option<&HashMap<String, String>>,
+) -> Result<CliOutput> {
+    let mut cmd = Command::new(binary.command_name());
+    cmd.args(args).stdout(Stdio::piped()).stderr(Stdio::piped());
+
+    if let Some(env_vars) = env {
+        for (k, v) in env_vars {
+            cmd.env(k, v);
+        }
+    }
+
+    let output = cmd.output().await.map_err(|e| {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            binary.not_found_error()
+        } else {
+            Error::Io(e)
+        }
+    })?;
 
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
