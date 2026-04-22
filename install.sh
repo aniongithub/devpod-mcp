@@ -2,31 +2,24 @@
 set -euo pipefail
 
 # devcontainer-mcp installer
-# Downloads the latest release binary and installs backend CLIs as needed.
+# Downloads the latest release binary.
+# Backend CLIs (devpod, devcontainer, gh) are detected at runtime —
+# if missing, the MCP server returns a helpful error message.
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/aniongithub/devcontainer-mcp/main/install.sh | bash
 #   curl -fsSL ... | bash -s -- --install-dir /usr/local/bin
-#   curl -fsSL ... | bash -s -- --backends devpod,codespaces
 
 REPO="aniongithub/devcontainer-mcp"
 INSTALL_DIR="${HOME}/.local/bin"
-BACKENDS="devpod,devcontainer,codespaces"
 
 # Parse args
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --backends)      BACKENDS="$2"; shift 2 ;;
     --install-dir)   INSTALL_DIR="$2"; shift 2 ;;
     --help|-h)
-      echo "Usage: install.sh [--backends LIST] [--install-dir DIR]"
-      echo "  --backends      Comma-separated backends to set up (default: devpod,devcontainer,codespaces)"
+      echo "Usage: install.sh [--install-dir DIR]"
       echo "  --install-dir   Installation directory (default: ~/.local/bin)"
-      echo ""
-      echo "Backends:"
-      echo "  devpod        Install DevPod CLI if missing"
-      echo "  devcontainer  Install @devcontainers/cli via npm if missing"
-      echo "  codespaces    Verify gh CLI is installed and authenticated"
       exit 0
       ;;
     *) echo "Unknown option: $1"; exit 1 ;;
@@ -97,80 +90,6 @@ if ! echo "$PATH" | tr ':' '\n' | grep -qx "$INSTALL_DIR"; then
   echo "  export PATH=\"${INSTALL_DIR}:\$PATH\""
 fi
 
-# ---------------------------------------------------------------------------
-# Backend CLIs
-# ---------------------------------------------------------------------------
-
-BACKEND_STATUS=()
-
-# Helper: check if a backend is requested
-has_backend() {
-  echo ",$BACKENDS," | grep -q ",$1,"
-}
-
-# --- DevPod ---
-if has_backend "devpod"; then
-  if command -v devpod >/dev/null 2>&1; then
-    echo ""
-    echo "==> DevPod CLI already installed: $(devpod version)"
-    BACKEND_STATUS+=("  ✓ devpod")
-  else
-    echo ""
-    echo "==> DevPod CLI not found — installing..."
-    DEVPOD_OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
-    DEVPOD_ARCH="$(uname -m)"
-
-    case "$DEVPOD_ARCH" in
-      x86_64|amd64)  DEVPOD_ARCH="amd64" ;;
-      aarch64|arm64) DEVPOD_ARCH="arm64" ;;
-    esac
-
-    DEVPOD_URL="https://github.com/loft-sh/devpod/releases/latest/download/devpod-${DEVPOD_OS}-${DEVPOD_ARCH}"
-    curl -fsSL -o "${INSTALL_DIR}/devpod" "$DEVPOD_URL"
-    chmod +x "${INSTALL_DIR}/devpod"
-    echo "==> Installed DevPod CLI to ${INSTALL_DIR}/devpod"
-    BACKEND_STATUS+=("  ✓ devpod (just installed)")
-  fi
-fi
-
-# --- devcontainer CLI ---
-if has_backend "devcontainer"; then
-  if command -v devcontainer >/dev/null 2>&1; then
-    echo ""
-    echo "==> devcontainer CLI already installed: $(devcontainer --version)"
-    BACKEND_STATUS+=("  ✓ devcontainer")
-  elif command -v npm >/dev/null 2>&1; then
-    echo ""
-    echo "==> devcontainer CLI not found — installing via npm..."
-    npm install -g @devcontainers/cli 2>&1 | tail -3
-    BACKEND_STATUS+=("  ✓ devcontainer (just installed)")
-  else
-    echo ""
-    echo "Warning: devcontainer CLI not found and npm is not available."
-    echo "Install Node.js first, then: npm install -g @devcontainers/cli"
-    BACKEND_STATUS+=("  ✗ devcontainer (npm not found)")
-  fi
-fi
-
-# --- Codespaces (gh CLI) ---
-if has_backend "codespaces"; then
-  if command -v gh >/dev/null 2>&1; then
-    if gh auth status >/dev/null 2>&1; then
-      echo ""
-      echo "==> gh CLI installed and authenticated"
-      BACKEND_STATUS+=("  ✓ codespaces")
-    else
-      echo ""
-      echo "Warning: gh CLI found but not authenticated. Run: gh auth login"
-      BACKEND_STATUS+=("  ✗ codespaces (not authenticated)")
-    fi
-  else
-    echo ""
-    echo "Warning: gh CLI not found. Install from: https://cli.github.com/"
-    BACKEND_STATUS+=("  ✗ codespaces (gh not found)")
-  fi
-fi
-
 # Install SKILL.md for agent discovery
 SKILL_URL="https://raw.githubusercontent.com/${REPO}/main/SKILL.md"
 SKILL_DIRS=(
@@ -187,11 +106,12 @@ for dir in "${SKILL_DIRS[@]}"; do
     echo "    ${dir}/SKILL.md" || true
 done
 
+# Detect available backends
 echo ""
-echo "Backend status:"
-for status in "${BACKEND_STATUS[@]}"; do
-  echo "$status"
-done
+echo "Backend CLIs detected (install as needed — MCP server gives helpful errors if missing):"
+command -v devpod       >/dev/null 2>&1 && echo "  ✓ devpod"       || echo "  ✗ devpod        — https://devpod.sh/docs/getting-started/install"
+command -v devcontainer >/dev/null 2>&1 && echo "  ✓ devcontainer"  || echo "  ✗ devcontainer   — npm install -g @devcontainers/cli"
+command -v gh           >/dev/null 2>&1 && echo "  ✓ gh (codespaces)" || echo "  ✗ gh (codespaces) — https://cli.github.com/"
 
 echo ""
 echo "Done! Configure your MCP client:"

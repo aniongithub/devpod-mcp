@@ -7,12 +7,11 @@ A unified MCP server that gives AI coding agents full control over dev container
 ## Quick Install
 
 ```bash
-# Install MCP server + all backend CLIs
+# Install the MCP server binary
 curl -fsSL https://raw.githubusercontent.com/aniongithub/devcontainer-mcp/main/install.sh | bash
-
-# Or pick specific backends
-curl -fsSL ... | bash -s -- --backends devpod,codespaces
 ```
+
+Backend CLIs (`devpod`, `devcontainer`, `gh`) are detected at runtime — if one is missing, the MCP server returns a helpful error telling you how to install it.
 
 Binaries are available for **linux-x64**, **linux-arm64**, **darwin-x64**, and **darwin-arm64**.
 
@@ -52,6 +51,16 @@ graph TD
 | **Codespaces** (`codespaces_*`) | GitHub-hosted cloud environments | [gh CLI](https://cli.github.com/) + auth |
 
 ## MCP Tools
+
+### Auth (3 tools)
+
+| Tool | Description |
+|------|-------------|
+| `auth_status` | Check auth status for a provider. Returns available auth handles and accounts. |
+| `auth_login` | Initiate login flow — opens browser, copies device code to clipboard. |
+| `auth_select` | Verify an auth handle is still valid. |
+
+Codespaces tools require a GitHub auth handle (e.g. `"github-aniongithub"`). Get one via `auth_status` or `auth_login`, then pass it as the `auth` parameter. The agent never sees raw tokens.
 
 ### DevPod (15 tools)
 
@@ -143,11 +152,11 @@ Add to your MCP settings:
 
 ## Prerequisites
 
-At least one backend CLI must be installed:
+Install backend CLIs as needed — the MCP server detects them at runtime and returns helpful errors if missing:
 
 - **DevPod**: [DevPod CLI](https://devpod.sh/docs/getting-started/install) + [Docker](https://docs.docker.com/get-docker/) (or another provider)
 - **devcontainer CLI**: `npm install -g @devcontainers/cli` + [Docker](https://docs.docker.com/get-docker/)
-- **Codespaces**: [GitHub CLI](https://cli.github.com/) authenticated with `gh auth login`
+- **Codespaces**: [GitHub CLI](https://cli.github.com/) — auth is handled by the `auth_login` tool
 
 ## Self-Healing Loop
 

@@ -2,6 +2,9 @@
 name: devcontainer-mcp
 description: Manage dev container environments via MCP tools (DevPod, devcontainer CLI, Codespaces)
 tools:
+  - auth_status
+  - auth_login
+  - auth_select
   - devpod_up
   - devpod_stop
   - devpod_delete
@@ -44,11 +47,39 @@ You have access to `devcontainer-mcp`, an MCP server that manages dev container 
 
 **If a project has `.devcontainer/devcontainer.json`, ALL work MUST happen inside a dev container — never install dependencies, run builds, or execute code directly on the host.**
 
+## Authentication
+
+**Before using Codespaces tools, you MUST obtain an auth handle.**
+
+### 1. Check available accounts
+```
+auth_status(provider: "github")
+→ returns accounts with IDs like "github-aniongithub"
+```
+
+### 2. If multiple accounts, ask the user which one to use
+
+### 3. If no accounts or missing scopes, initiate login
+```
+auth_login(provider: "github", scopes: "codespace")
+→ opens browser, copies device code to clipboard
+→ tell the user: "Approve in the browser, code is on your clipboard"
+```
+
+### 4. Pass the auth handle to all codespaces_* tools
+```
+codespaces_create(auth: "github-aniongithub", repo: "owner/repo", ...)
+```
+
+**The agent never sees raw tokens.** Auth handles are opaque IDs resolved by the MCP server.
+
+Supported auth providers: `github`, `aws`, `azure`, `gcloud`, `kubernetes`
+
 ## Choosing a Backend
 
-1. **Local Docker + devcontainer CLI** — simplest for local development
+1. **Local Docker + devcontainer CLI** — simplest for local development, no auth needed
 2. **DevPod** — when you need multi-provider support or the project uses DevPod
-3. **Codespaces** — when you need cloud-hosted environments or the user prefers GitHub infrastructure
+3. **Codespaces** — when you need cloud-hosted environments (requires GitHub auth)
 
 ## Workflow: DevPod
 
@@ -91,19 +122,27 @@ devcontainer_stop(workspace_folder: "/path/to/project")
 
 ## Workflow: Codespaces
 
-### 1. Create a codespace
+### 1. Authenticate
 ```
-codespaces_create(repo: "owner/repo", machine: "basicLinux")
-```
-
-### 2. Execute commands
-```
-codespaces_ssh(codespace: "codespace-name", command: "npm test")
+auth_status(provider: "github")
+# If no accounts: auth_login(provider: "github", scopes: "codespace")
+# If multiple: ask the user which account
 ```
 
-### 3. Stop when done
+### 2. Create a codespace — ask user for machine type
 ```
-codespaces_stop(codespace: "codespace-name")
+codespaces_create(auth: "github-USERNAME", repo: "owner/repo", machine: "basicLinux32gb")
+```
+Machine types: `basicLinux32gb` (2 cores, 8 GB), `standardLinux32gb` (4 cores, 16 GB), `premiumLinux` (8 cores, 32 GB), `largePremiumLinux` (16 cores, 64 GB)
+
+### 3. Execute commands
+```
+codespaces_ssh(auth: "github-USERNAME", codespace: "codespace-name", command: "npm test")
+```
+
+### 4. Stop when done
+```
+codespaces_stop(auth: "github-USERNAME", codespace: "codespace-name")
 ```
 
 ## Self-Healing
@@ -119,5 +158,7 @@ If `devpod_up`, `devcontainer_up`, or `codespaces_create` returns errors:
 - ❌ Do NOT install packages on the host
 - ❌ Do NOT run builds on the host
 - ❌ Do NOT modify the host's global config
+- ✅ DO authenticate before using codespaces tools
+- ✅ DO ask the user which account/machine type to use
 - ✅ DO use `devpod_ssh`, `devcontainer_exec`, or `codespaces_ssh` for everything
 - ✅ DO check `.devcontainer/devcontainer.json` first
