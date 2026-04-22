@@ -65,14 +65,14 @@ if [[ -z "$VERSION" ]]; then
 fi
 echo "==> Latest version: ${VERSION}"
 
-BINARY_NAME="devcontainer-mcp-${PLATFORM}"
-DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${VERSION}/${BINARY_NAME}"
+TARBALL_NAME="devcontainer-mcp-${PLATFORM}.tar.gz"
+DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${VERSION}/${TARBALL_NAME}"
 
 # Create install directory
 mkdir -p "$INSTALL_DIR"
 
-echo "==> Downloading ${BINARY_NAME}..."
-curl -fsSL -o "${INSTALL_DIR}/devcontainer-mcp" "$DOWNLOAD_URL"
+echo "==> Downloading ${TARBALL_NAME}..."
+curl -fsSL "$DOWNLOAD_URL" | tar xz -C "${INSTALL_DIR}"
 chmod +x "${INSTALL_DIR}/devcontainer-mcp"
 
 # macOS: ad-hoc codesign to avoid Gatekeeper "Killed: 9"
