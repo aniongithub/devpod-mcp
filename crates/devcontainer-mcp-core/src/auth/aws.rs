@@ -136,7 +136,9 @@ impl AuthProvider for AwsAuth {
         }
     }
 
-    async fn verify(&self, handle: &str) -> Result<Option<AuthAccount>> {
+    async fn select(&self, handle: &str) -> Result<Option<AuthAccount>> {
+        // AWS doesn't have an "active" account concept — profiles are selected per-call.
+        // Select validates the profile works by calling sts get-caller-identity.
         let profile = handle.strip_prefix("aws-").unwrap_or(handle);
         let output = run_cli(
             &CliBinary::Aws,
@@ -162,7 +164,7 @@ impl AuthProvider for AwsAuth {
                 return Ok(Some(AuthAccount {
                     id: handle.to_string(),
                     login: arn,
-                    active: profile == "default",
+                    active: true,
                     metadata: parsed,
                 }));
             }
@@ -175,5 +177,20 @@ impl AuthProvider for AwsAuth {
         let mut env = HashMap::new();
         env.insert("AWS_PROFILE".into(), profile.to_string());
         Ok(env)
+    }
+
+    async fn logout(&self, handle: &str) -> Result<String> {
+        let profile = handle.strip_prefix("aws-").unwrap_or(handle);
+        let output = run_cli(
+            &CliBinary::Aws,
+            &["sso", "logout", "--profile", profile],
+            false,
+        )
+        .await?;
+        if output.exit_code == 0 {
+            Ok(format!("Logged out AWS profile: {profile}"))
+        } else {
+            Ok(format!("AWS logout failed: {}", output.stderr.trim()))
+        }
     }
 }

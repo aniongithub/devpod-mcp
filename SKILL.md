@@ -5,6 +5,7 @@ tools:
   - auth_status
   - auth_login
   - auth_select
+  - auth_logout
   - devpod_up
   - devpod_stop
   - devpod_delete

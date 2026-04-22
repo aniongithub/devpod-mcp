@@ -116,13 +116,19 @@ impl AuthProvider for AzureAuth {
         }
     }
 
-    async fn verify(&self, handle: &str) -> Result<Option<AuthAccount>> {
+    async fn select(&self, handle: &str) -> Result<Option<AuthAccount>> {
         let sub_id = handle.strip_prefix("azure-").unwrap_or(handle);
+        let output = run_cli(
+            &CliBinary::Az,
+            &["account", "set", "--subscription", sub_id],
+            false,
+        )
+        .await?;
+        if output.exit_code != 0 {
+            return Ok(None);
+        }
         let status = self.status().await?;
-        Ok(status.accounts.into_iter().find(|a| {
-            a.id == handle
-                || a.metadata.get("subscription_id").and_then(|s| s.as_str()) == Some(sub_id)
-        }))
+        Ok(status.accounts.into_iter().find(|a| a.active))
     }
 
     async fn resolve_env(&self, handle: &str) -> Result<HashMap<String, String>> {
@@ -130,5 +136,14 @@ impl AuthProvider for AzureAuth {
         let mut env = HashMap::new();
         env.insert("AZURE_SUBSCRIPTION_ID".into(), sub_id.to_string());
         Ok(env)
+    }
+
+    async fn logout(&self, _handle: &str) -> Result<String> {
+        let output = run_cli(&CliBinary::Az, &["logout"], false).await?;
+        if output.exit_code == 0 {
+            Ok("Logged out of Azure.".into())
+        } else {
+            Ok(format!("Azure logout failed: {}", output.stderr.trim()))
+        }
     }
 }

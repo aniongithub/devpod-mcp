@@ -528,21 +528,45 @@ impl DevContainerMcp {
 
     #[tool(
         name = "auth_select",
-        description = "Verify that an auth handle is still valid. Returns account info if valid, null if expired/invalid."
+        description = "Switch the active account for a provider. Returns account info if successful, null if the handle is invalid."
     )]
     async fn auth_select(
         &self,
         #[tool(param)]
-        #[schemars(description = "Auth handle to verify (e.g. 'github-aniongithub', 'aws-prod')")]
+        #[schemars(
+            description = "Auth handle to switch to (e.g. 'github-aniongithub', 'aws-prod')"
+        )]
         id: String,
     ) -> String {
         let provider_name = auth::provider_from_handle(&id).unwrap_or("unknown");
         match auth::get_provider(provider_name) {
-            Some(p) => match p.verify(&id).await {
+            Some(p) => match p.select(&id).await {
                 Ok(Some(account)) => {
                     serde_json::to_string(&account).unwrap_or_else(|e| format!("Error: {e}"))
                 }
-                Ok(None) => format!("Auth handle not valid: {id}"),
+                Ok(None) => format!("Failed to switch to: {id}"),
+                Err(e) => format!("Error: {e}"),
+            },
+            None => format!("Unknown auth provider in handle: {id}"),
+        }
+    }
+
+    #[tool(
+        name = "auth_logout",
+        description = "Logout / revoke an authenticated account. Removes credentials from the provider's keyring."
+    )]
+    async fn auth_logout(
+        &self,
+        #[tool(param)]
+        #[schemars(
+            description = "Auth handle to logout (e.g. 'github-aniongithub', 'azure-<sub-id>')"
+        )]
+        id: String,
+    ) -> String {
+        let provider_name = auth::provider_from_handle(&id).unwrap_or("unknown");
+        match auth::get_provider(provider_name) {
+            Some(p) => match p.logout(&id).await {
+                Ok(msg) => msg,
                 Err(e) => format!("Error: {e}"),
             },
             None => format!("Unknown auth provider in handle: {id}"),

@@ -56,8 +56,8 @@ pub trait AuthProvider: Send + Sync {
     /// `scopes` is provider-specific (e.g. "codespace" for GitHub).
     async fn login(&self, scopes: Option<&str>) -> crate::error::Result<AuthLoginResult>;
 
-    /// Verify that a handle is still valid and return its account info.
-    async fn verify(&self, handle: &str) -> crate::error::Result<Option<AuthAccount>>;
+    /// Switch the active account for this provider. Returns account info if valid.
+    async fn select(&self, handle: &str) -> crate::error::Result<Option<AuthAccount>>;
 
     /// Resolve a handle to the environment variables needed by the subprocess.
     /// e.g. github → { "GH_TOKEN": "<token>" }
@@ -65,6 +65,9 @@ pub trait AuthProvider: Send + Sync {
         &self,
         handle: &str,
     ) -> crate::error::Result<std::collections::HashMap<String, String>>;
+
+    /// Logout / revoke an account by handle.
+    async fn logout(&self, handle: &str) -> crate::error::Result<String>;
 }
 
 /// Get a provider by name.

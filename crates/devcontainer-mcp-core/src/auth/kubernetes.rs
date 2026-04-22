@@ -102,8 +102,17 @@ impl AuthProvider for KubernetesAuth {
         })
     }
 
-    async fn verify(&self, handle: &str) -> Result<Option<AuthAccount>> {
+    async fn select(&self, handle: &str) -> Result<Option<AuthAccount>> {
         let context = handle.strip_prefix("k8s-").unwrap_or(handle);
+        let output = run_cli(
+            &CliBinary::Kubectl,
+            &["config", "use-context", context],
+            false,
+        )
+        .await?;
+        if output.exit_code != 0 {
+            return Ok(None);
+        }
         let status = self.status().await?;
         Ok(status.accounts.into_iter().find(|a| a.login == context))
     }
@@ -111,9 +120,25 @@ impl AuthProvider for KubernetesAuth {
     async fn resolve_env(&self, handle: &str) -> Result<HashMap<String, String>> {
         let context = handle.strip_prefix("k8s-").unwrap_or(handle);
         let mut env = HashMap::new();
-        // Use KUBECONFIG context via --context flag is better,
-        // but for env-based resolution we can set the variable
         env.insert("KUBECTL_CONTEXT".into(), context.to_string());
         Ok(env)
+    }
+
+    async fn logout(&self, handle: &str) -> Result<String> {
+        let context = handle.strip_prefix("k8s-").unwrap_or(handle);
+        let output = run_cli(
+            &CliBinary::Kubectl,
+            &["config", "delete-context", context],
+            false,
+        )
+        .await?;
+        if output.exit_code == 0 {
+            Ok(format!("Deleted Kubernetes context: {context}"))
+        } else {
+            Ok(format!(
+                "Failed to delete context: {}",
+                output.stderr.trim()
+            ))
+        }
     }
 }

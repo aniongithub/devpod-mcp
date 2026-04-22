@@ -105,8 +105,17 @@ impl AuthProvider for GcloudAuth {
         }
     }
 
-    async fn verify(&self, handle: &str) -> Result<Option<AuthAccount>> {
+    async fn select(&self, handle: &str) -> Result<Option<AuthAccount>> {
         let account = handle.strip_prefix("gcloud-").unwrap_or(handle);
+        let output = run_cli(
+            &CliBinary::Gcloud,
+            &["config", "set", "account", account],
+            false,
+        )
+        .await?;
+        if output.exit_code != 0 {
+            return Ok(None);
+        }
         let status = self.status().await?;
         Ok(status.accounts.into_iter().find(|a| a.login == account))
     }
@@ -116,5 +125,15 @@ impl AuthProvider for GcloudAuth {
         let mut env = HashMap::new();
         env.insert("CLOUDSDK_CORE_ACCOUNT".into(), account.to_string());
         Ok(env)
+    }
+
+    async fn logout(&self, handle: &str) -> Result<String> {
+        let account = handle.strip_prefix("gcloud-").unwrap_or(handle);
+        let output = run_cli(&CliBinary::Gcloud, &["auth", "revoke", account], false).await?;
+        if output.exit_code == 0 {
+            Ok(format!("Revoked Google Cloud account: {account}"))
+        } else {
+            Ok(format!("GCloud logout failed: {}", output.stderr.trim()))
+        }
     }
 }
