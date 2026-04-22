@@ -11,7 +11,9 @@ RUN apt-get update \
         libssl-dev \
         ca-certificates \
         git \
+        git-lfs \
         sudo \
+    && git lfs install \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
