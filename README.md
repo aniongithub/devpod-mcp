@@ -171,20 +171,18 @@ This makes the dev environment a **dynamic, agent-managed asset** rather than a 
 
 ## Development
 
-This project eats its own dogfood — development happens inside a DevPod workspace.
+This project eats its own dogfood — development happens inside its own devcontainer.
 
 ```bash
-# Create and start the dev workspace
+# Using the devcontainer CLI
+devcontainer up --workspace-folder .
+devcontainer exec --workspace-folder . cargo build --workspace
+devcontainer exec --workspace-folder . cargo test --workspace
+devcontainer exec --workspace-folder . cargo build --release -p devcontainer-mcp
+
+# Or using DevPod
 devpod up . --id devcontainer-mcp --provider docker --open-ide=false
-
-# Build inside the workspace
 devpod ssh devcontainer-mcp --command "cd /workspaces/devcontainer-mcp && cargo build --workspace"
-
-# Run tests
-devpod ssh devcontainer-mcp --command "cd /workspaces/devcontainer-mcp && cargo test --workspace"
-
-# Build release binary
-devpod ssh devcontainer-mcp --command "cd /workspaces/devcontainer-mcp && cargo build --release -p devcontainer-mcp"
 ```
 
 ### CI/CD

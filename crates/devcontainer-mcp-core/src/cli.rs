@@ -21,6 +21,14 @@ pub enum CliBinary {
     Devcontainer,
     /// GitHub CLI — the actual binary is `gh`.
     Gh,
+    /// Azure CLI
+    Az,
+    /// AWS CLI
+    Aws,
+    /// Google Cloud CLI
+    Gcloud,
+    /// Kubernetes CLI
+    Kubectl,
 }
 
 impl CliBinary {
@@ -29,6 +37,10 @@ impl CliBinary {
             CliBinary::DevPod => "devpod",
             CliBinary::Devcontainer => "devcontainer",
             CliBinary::Gh => "gh",
+            CliBinary::Az => "az",
+            CliBinary::Aws => "aws",
+            CliBinary::Gcloud => "gcloud",
+            CliBinary::Kubectl => "kubectl",
         }
     }
 
@@ -37,6 +49,10 @@ impl CliBinary {
             CliBinary::DevPod => Error::DevPodNotFound,
             CliBinary::Devcontainer => Error::DevcontainerCliNotFound,
             CliBinary::Gh => Error::GhCliNotFound,
+            CliBinary::Az => Error::AzCliNotFound,
+            CliBinary::Aws => Error::AwsCliNotFound,
+            CliBinary::Gcloud => Error::GcloudCliNotFound,
+            CliBinary::Kubectl => Error::KubectlNotFound,
         }
     }
 }

@@ -1,4 +1,8 @@
+pub mod aws;
+pub mod azure;
+pub mod gcloud;
 pub mod github;
+pub mod kubernetes;
 
 use async_trait::async_trait;
 use serde::Serialize;
@@ -67,10 +71,10 @@ pub trait AuthProvider: Send + Sync {
 pub fn get_provider(name: &str) -> Option<Box<dyn AuthProvider>> {
     match name {
         "github" => Some(Box::new(github::GitHubAuth)),
-        // Future: "aws" => Some(Box::new(aws::AwsAuth)),
-        // Future: "azure" => Some(Box::new(azure::AzureAuth)),
-        // Future: "gcloud" => Some(Box::new(gcloud::GcloudAuth)),
-        // Future: "kubernetes" => Some(Box::new(kubernetes::K8sAuth)),
+        "azure" => Some(Box::new(azure::AzureAuth)),
+        "aws" => Some(Box::new(aws::AwsAuth)),
+        "gcloud" => Some(Box::new(gcloud::GcloudAuth)),
+        "kubernetes" => Some(Box::new(kubernetes::KubernetesAuth)),
         _ => None,
     }
 }
