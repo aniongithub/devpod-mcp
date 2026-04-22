@@ -74,6 +74,13 @@ mkdir -p "$INSTALL_DIR"
 echo "==> Downloading ${BINARY_NAME}..."
 curl -fsSL -o "${INSTALL_DIR}/devcontainer-mcp" "$DOWNLOAD_URL"
 chmod +x "${INSTALL_DIR}/devcontainer-mcp"
+
+# macOS: ad-hoc codesign to avoid Gatekeeper "Killed: 9"
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  codesign -s - "${INSTALL_DIR}/devcontainer-mcp" 2>/dev/null && \
+    echo "==> Codesigned binary for macOS" || true
+fi
+
 echo "==> Installed devcontainer-mcp to ${INSTALL_DIR}/devcontainer-mcp"
 
 # Verify
