@@ -36,9 +36,19 @@ Agent: "Let me build this project..."
 
 ## Quick Install
 
+### Linux / macOS
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/aniongithub/devcontainer-mcp/main/install.sh | bash
 ```
+
+### Windows (via WSL)
+
+```powershell
+irm https://raw.githubusercontent.com/aniongithub/devcontainer-mcp/main/install.ps1 | iex
+```
+
+> **How it works:** The binary runs inside WSL; MCP clients on Windows launch it via `wsl ~/.local/bin/devcontainer-mcp serve`. The stdio transport works transparently across the WSL boundary. WSL 2 is required — install it with `wsl --install` if you haven't already.
 
 Backend CLIs (`devpod`, `devcontainer`, `gh`) are detected at runtime — if one is missing, the MCP server returns a helpful error with install instructions.
 
@@ -145,7 +155,7 @@ Supported providers: **GitHub**, **AWS**, **Azure**, **GCP**, **Kubernetes**
 
 ## MCP Server Configuration
 
-### Claude Desktop / Copilot / Cursor
+### Linux / macOS
 
 ```json
 {
@@ -153,6 +163,19 @@ Supported providers: **GitHub**, **AWS**, **Azure**, **GCP**, **Kubernetes**
     "devcontainer-mcp": {
       "command": "devcontainer-mcp",
       "args": ["serve"]
+    }
+  }
+}
+```
+
+### Windows (WSL bridge)
+
+```json
+{
+  "mcpServers": {
+    "devcontainer-mcp": {
+      "command": "wsl",
+      "args": ["~/.local/bin/devcontainer-mcp", "serve"]
     }
   }
 }
