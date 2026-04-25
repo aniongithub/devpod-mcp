@@ -86,7 +86,7 @@
             </button>
           </div>
         </div>
-        <p class="install-note" id="install-note-windows" style="display:none">Runs inside WSL — MCP clients on Windows launch via <code>wsl</code> bridge. Requires <a href="https://learn.microsoft.com/en-us/windows/wsl/install">WSL 2</a>.</p>
+        <p class="install-note" id="install-note-windows" style="visibility:hidden">Runs inside WSL — MCP clients on Windows launch via <code>wsl</code> bridge. Requires <a href="https://learn.microsoft.com/en-us/windows/wsl/install">WSL 2</a>.</p>
       </div>
       <div class="hero-works-with">
         <span class="works-with-label">and start coding with</span>
@@ -314,7 +314,7 @@
       const isWindows = platform === 'windows';
       document.getElementById('install-unix').style.display = isWindows ? 'none' : 'flex';
       document.getElementById('install-windows').style.display = isWindows ? 'flex' : 'none';
-      document.getElementById('install-note-windows').style.display = isWindows ? 'block' : 'none';
+      document.getElementById('install-note-windows').style.visibility = isWindows ? 'visible' : 'hidden';
     }
 
     // Auto-detect OS and select the right tab
