@@ -45,7 +45,7 @@ curl -fsSL https://raw.githubusercontent.com/aniongithub/devcontainer-mcp/main/i
 ### Windows (via WSL)
 
 ```powershell
-irm https://raw.githubusercontent.com/aniongithub/devcontainer-mcp/main/install.ps1 | iex
+Invoke-RestMethod https://github.com/aniongithub/devcontainer-mcp/releases/latest/download/install.ps1 | Invoke-Expression
 ```
 
 > **How it works:** The binary runs inside WSL; MCP clients on Windows launch it via `wsl ~/.local/bin/devcontainer-mcp serve`. The stdio transport works transparently across the WSL boundary. WSL 2 is required — install it with `wsl --install` if you haven't already.
