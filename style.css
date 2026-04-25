@@ -177,6 +177,45 @@ code {
   align-items: center;
   gap: 1rem;
 }
+.install-tabs {
+  display: flex;
+  gap: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  margin-bottom: 0.5rem;
+}
+.install-tab {
+  padding: 0.45rem 1.2rem;
+  background: var(--bg-surface);
+  color: var(--text-dim);
+  border: none;
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: 0.8rem;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+.install-tab:not(:last-child) {
+  border-right: 1px solid var(--border);
+}
+.install-tab.active {
+  background: var(--accent);
+  color: #fff;
+}
+.install-tab:hover:not(.active) {
+  background: var(--bg-card);
+  color: var(--text);
+}
+.install-note {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 0.4rem;
+  text-align: center;
+}
+.install-note code {
+  color: var(--text-dim);
+}
 .install-box {
   display: flex;
   align-items: center;
