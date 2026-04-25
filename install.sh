@@ -12,14 +12,17 @@ set -euo pipefail
 
 REPO="aniongithub/devcontainer-mcp"
 INSTALL_DIR="${HOME}/.local/bin"
+SKIP_MCP_CONFIG=false
 
 # Parse args
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --install-dir)   INSTALL_DIR="$2"; shift 2 ;;
+    --install-dir)       INSTALL_DIR="$2"; shift 2 ;;
+    --skip-mcp-config)   SKIP_MCP_CONFIG=true; shift ;;
     --help|-h)
-      echo "Usage: install.sh [--install-dir DIR]"
-      echo "  --install-dir   Installation directory (default: ~/.local/bin)"
+      echo "Usage: install.sh [--install-dir DIR] [--skip-mcp-config]"
+      echo "  --install-dir       Installation directory (default: ~/.local/bin)"
+      echo "  --skip-mcp-config   Skip MCP client configuration (used by install.ps1)"
       exit 0
       ;;
     *) echo "Unknown option: $1"; exit 1 ;;
@@ -121,8 +124,16 @@ command -v devcontainer >/dev/null 2>&1 && echo "  ✓ devcontainer"  || echo " 
 command -v gh           >/dev/null 2>&1 && echo "  ✓ gh (codespaces)" || echo "  ✗ gh (codespaces) — https://cli.github.com/"
 
 # ---------------------------------------------------------------------------
-# Auto-configure MCP clients
+# Auto-configure MCP clients (skipped when called from install.ps1)
 # ---------------------------------------------------------------------------
+
+if [ "$SKIP_MCP_CONFIG" = true ]; then
+  echo ""
+  echo "==> Skipping MCP client configuration (--skip-mcp-config)"
+  echo ""
+  echo "Done! devcontainer-mcp binary is installed."
+  exit 0
+fi
 
 configure_mcp_client() {
   local config_file="$1"

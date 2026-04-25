@@ -78,11 +78,13 @@ jobs:
           files: ${{ matrix.artifact }}.tar.gz
 
   upload-install-script:
-    name: Upload install script
+    name: Upload install scripts
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Upload install.sh
+      - name: Upload install.sh and install.ps1
         uses: softprops/action-gh-release@v3
         with:
-          files: install.sh
+          files: |
+            install.sh
+            install.ps1
