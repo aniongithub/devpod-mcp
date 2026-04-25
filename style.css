@@ -175,42 +175,60 @@ code {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1rem;
+  gap: 0;
+}
+.install-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  max-width: 100%;
 }
 .install-tabs {
   display: flex;
   gap: 0;
-  border-radius: 8px;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  margin-bottom: 0.5rem;
+  align-self: flex-start;
 }
 .install-tab {
   padding: 0.45rem 1.2rem;
-  background: var(--bg-surface);
-  color: var(--text-dim);
-  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
   cursor: pointer;
   font-family: var(--font);
   font-size: 0.8rem;
   font-weight: 500;
   transition: all 0.2s;
+  margin-right: -1px;
+  position: relative;
 }
-.install-tab:not(:last-child) {
-  border-right: 1px solid var(--border);
+.install-tab:last-child {
+  margin-right: 0;
 }
 .install-tab.active {
-  background: var(--accent);
-  color: #fff;
+  background: var(--bg-surface);
+  color: var(--text);
+  border-color: var(--border);
+  z-index: 1;
+}
+.install-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--bg-surface);
 }
 .install-tab:hover:not(.active) {
   background: var(--bg-card);
-  color: var(--text);
+  color: var(--text-dim);
 }
 .install-note {
   font-size: 0.78rem;
   color: var(--text-muted);
-  margin-top: 0.4rem;
+  margin-top: 0.6rem;
   text-align: center;
 }
 .install-note code {
@@ -222,13 +240,20 @@ code {
   gap: 0.5rem;
   background: var(--bg-surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: 0 var(--radius) var(--radius) var(--radius);
   padding: 0.75rem 1rem;
   font-family: var(--mono);
   font-size: 0.85rem;
   color: var(--green);
   max-width: 100%;
+}
+.install-box code {
+  white-space: nowrap;
   overflow-x: auto;
+  flex: 1;
+  min-width: 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
 }
 .copy-btn {
   background: var(--bg-card);

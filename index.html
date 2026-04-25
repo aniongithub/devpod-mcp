@@ -56,33 +56,35 @@
         Azure, AWS, Google Cloud or Kubernetes seamlessly!
       </p>
       <div class="hero-cta">
-        <div class="install-tabs">
-          <button class="install-tab active" onclick="switchInstallTab('unix', this)">Linux / macOS</button>
-          <button class="install-tab" onclick="switchInstallTab('windows', this)">Windows</button>
-        </div>
-        <div class="install-box" id="install-unix">
-          <code id="install-cmd-unix">curl -fsSL https://github.com/aniongithub/devcontainer-mcp/releases/latest/download/install.sh | bash</code>
-          <button class="copy-btn" onclick="copyText('install-cmd-unix', this)" title="Copy to clipboard">
-            <svg class="copy-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-            </svg>
-            <svg class="check-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
-              <polyline points="20 6 9 17 4 12"></polyline>
-            </svg>
-          </button>
-        </div>
-        <div class="install-box" id="install-windows" style="display:none">
-          <code id="install-cmd-windows">Invoke-RestMethod https://github.com/aniongithub/devcontainer-mcp/releases/latest/download/install.ps1 | Invoke-Expression</code>
-          <button class="copy-btn" onclick="copyText('install-cmd-windows', this)" title="Copy to clipboard">
-            <svg class="copy-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-            </svg>
-            <svg class="check-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
-              <polyline points="20 6 9 17 4 12"></polyline>
-            </svg>
-          </button>
+        <div class="install-wrapper">
+          <div class="install-tabs">
+            <button class="install-tab active" data-platform="unix" onclick="switchInstallTab('unix', this)">Linux / macOS</button>
+            <button class="install-tab" data-platform="windows" onclick="switchInstallTab('windows', this)">Windows</button>
+          </div>
+          <div class="install-box" id="install-unix">
+            <code id="install-cmd-unix">curl -fsSL https://github.com/aniongithub/devcontainer-mcp/releases/latest/download/install.sh | bash</code>
+            <button class="copy-btn" onclick="copyText('install-cmd-unix', this)" title="Copy to clipboard">
+              <svg class="copy-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+              <svg class="check-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            </button>
+          </div>
+          <div class="install-box" id="install-windows" style="display:none">
+            <code id="install-cmd-windows">irm https://github.com/aniongithub/devcontainer-mcp/releases/latest/download/install.ps1 | iex</code>
+            <button class="copy-btn" onclick="copyText('install-cmd-windows', this)" title="Copy to clipboard">
+              <svg class="copy-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+              <svg class="check-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            </button>
+          </div>
         </div>
         <p class="install-note" id="install-note-windows" style="display:none">Runs inside WSL — MCP clients on Windows launch via <code>wsl</code> bridge. Requires <a href="https://learn.microsoft.com/en-us/windows/wsl/install">WSL 2</a>.</p>
       </div>
@@ -314,6 +316,16 @@
       document.getElementById('install-windows').style.display = isWindows ? 'flex' : 'none';
       document.getElementById('install-note-windows').style.display = isWindows ? 'block' : 'none';
     }
+
+    // Auto-detect OS and select the right tab
+    (function() {
+      const isWindows = navigator.platform.indexOf('Win') > -1 ||
+        navigator.userAgent.indexOf('Windows') > -1;
+      if (isWindows) {
+        const winTab = document.querySelector('.install-tab[data-platform="windows"]');
+        if (winTab) switchInstallTab('windows', winTab);
+      }
+    })();
   </script>
 </body>
 </html>
