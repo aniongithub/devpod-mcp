@@ -120,7 +120,7 @@ done
 echo ""
 echo "Backend CLIs detected (install as needed — MCP server gives helpful errors if missing):"
 command -v devpod       >/dev/null 2>&1 && echo "  ✓ devpod"       || echo "  ✗ devpod        — https://devpod.sh/docs/getting-started/install"
-command -v devcontainer >/dev/null 2>&1 && echo "  ✓ devcontainer"  || echo "  ✗ devcontainer   — npm install -g @devcontainers/cli"
+command -v devcontainer >/dev/null 2>&1 && echo "  ✓ devcontainer"  || echo "  ✗ devcontainer   — https://github.com/devcontainers/cli#install-script"
 command -v gh           >/dev/null 2>&1 && echo "  ✓ gh (codespaces)" || echo "  ✗ gh (codespaces) — https://cli.github.com/"
 
 # ---------------------------------------------------------------------------
