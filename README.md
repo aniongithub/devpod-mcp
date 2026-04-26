@@ -19,7 +19,7 @@ When AI agents write code, they need to run it somewhere. Today that means your 
 
 The [devcontainer spec](https://containers.dev/) already defines reproducible, container-based dev environments. Every major project ships a `.devcontainer/devcontainer.json`. But AI agents can't use them — until now.
 
-`devcontainer-mcp` exposes **33 MCP tools** that let any AI agent:
+`devcontainer-mcp` exposes **45 MCP tools** that let any AI agent:
 
 1. **Spin up** a dev container from any repo — locally, on a cloud VM, or in Codespaces
 2. **Run commands** inside the container — builds, tests, linting, anything
@@ -98,7 +98,7 @@ Codespaces tools require an auth handle (e.g. `"github-aniongithub"`). The MCP s
 
 Supported providers: **GitHub**, **AWS**, **Azure**, **GCP**, **Kubernetes**
 
-## MCP Tools (33 total)
+## MCP Tools (45 total)
 
 ### Auth (4 tools)
 
@@ -109,7 +109,7 @@ Supported providers: **GitHub**, **AWS**, **Azure**, **GCP**, **Kubernetes**
 | `auth_select` | Switch the active account for a provider |
 | `auth_logout` | Revoke credentials for an account |
 
-### DevPod (15 tools)
+### DevPod (19 tools)
 
 | Tool | Description |
 |------|-------------|
@@ -128,8 +128,12 @@ Supported providers: **GitHub**, **AWS**, **Azure**, **GCP**, **Kubernetes**
 | `devpod_context_use` | Switch to a different context |
 | `devpod_container_inspect` | Docker inspect — labels, ports, mounts, state |
 | `devpod_container_logs` | Stream container logs via Docker API |
+| `devpod_file_read` | Read file content with optional line range |
+| `devpod_file_write` | Create or overwrite a file (auto-creates parent dirs) |
+| `devpod_file_edit` | Surgical string replacement — old_str → new_str |
+| `devpod_file_list` | List directory contents (non-hidden, 2 levels deep) |
 
-### devcontainer CLI (7 tools)
+### devcontainer CLI (11 tools)
 
 | Tool | Description |
 |------|-------------|
@@ -140,8 +144,12 @@ Supported providers: **GitHub**, **AWS**, **Azure**, **GCP**, **Kubernetes**
 | `devcontainer_stop` | Stop a dev container (via Docker API) |
 | `devcontainer_remove` | Remove a dev container and its resources |
 | `devcontainer_status` | Get dev container state by workspace folder |
+| `devcontainer_file_read` | Read file content with optional line range |
+| `devcontainer_file_write` | Create or overwrite a file (auto-creates parent dirs) |
+| `devcontainer_file_edit` | Surgical string replacement — old_str → new_str |
+| `devcontainer_file_list` | List directory contents (non-hidden, 2 levels deep) |
 
-### GitHub Codespaces (7 tools) — require `auth` handle
+### GitHub Codespaces (11 tools) — require `auth` handle
 
 | Tool | Description |
 |------|-------------|
@@ -152,6 +160,10 @@ Supported providers: **GitHub**, **AWS**, **Azure**, **GCP**, **Kubernetes**
 | `codespaces_delete` | Delete a codespace |
 | `codespaces_view` | View detailed codespace info (state, machine, config) |
 | `codespaces_ports` | List forwarded ports with visibility and URLs |
+| `codespaces_file_read` | Read file content with optional line range |
+| `codespaces_file_write` | Create or overwrite a file (auto-creates parent dirs) |
+| `codespaces_file_edit` | Surgical string replacement — old_str → new_str |
+| `codespaces_file_list` | List directory contents (non-hidden, 2 levels deep) |
 
 ## MCP Server Configuration
 

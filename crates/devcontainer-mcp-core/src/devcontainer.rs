@@ -94,3 +94,63 @@ pub async fn status(workspace_folder: &str) -> Result<Option<docker::ContainerIn
     let client = docker::connect()?;
     docker::find_container_by_local_folder(&client, workspace_folder).await
 }
+
+// ---------------------------------------------------------------------------
+// File operations
+// ---------------------------------------------------------------------------
+
+/// Read a file from a dev container.
+pub async fn file_read(
+    workspace_folder: &str,
+    path: &str,
+) -> Result<CliOutput> {
+    let cmd = crate::file_ops::read_file_command(path);
+    exec(workspace_folder, "sh", &["-c", &cmd]).await
+}
+
+/// Write (create or overwrite) a file in a dev container.
+pub async fn file_write(
+    workspace_folder: &str,
+    path: &str,
+    content: &str,
+) -> Result<CliOutput> {
+    let cmd = crate::file_ops::write_file_command(path, content);
+    exec(workspace_folder, "sh", &["-c", &cmd]).await
+}
+
+/// Surgical edit: replace exactly one occurrence of `old_str` with `new_str`.
+pub async fn file_edit(
+    workspace_folder: &str,
+    path: &str,
+    old_str: &str,
+    new_str: &str,
+) -> Result<String> {
+    let read_output = file_read(workspace_folder, path).await?;
+    if read_output.exit_code != 0 {
+        return Err(crate::error::Error::FileRead(format!(
+            "Failed to read {path}: {}",
+            read_output.stderr.trim()
+        )));
+    }
+
+    let modified = crate::file_ops::apply_edit(&read_output.stdout, old_str, new_str)?;
+
+    let write_output = file_write(workspace_folder, path, &modified).await?;
+    if write_output.exit_code != 0 {
+        return Err(crate::error::Error::FileEdit(format!(
+            "Failed to write {path}: {}",
+            write_output.stderr.trim()
+        )));
+    }
+
+    Ok(format!("Edit applied to {path}"))
+}
+
+/// List directory contents in a dev container.
+pub async fn file_list(
+    workspace_folder: &str,
+    path: &str,
+) -> Result<CliOutput> {
+    let cmd = crate::file_ops::list_dir_command(path);
+    exec(workspace_folder, "sh", &["-c", &cmd]).await
+}

@@ -30,6 +30,12 @@ pub enum Error {
     #[error("DevPod command failed (exit code {exit_code}): {stderr}")]
     DevPodCommand { exit_code: i32, stderr: String },
 
+    #[error("File read error: {0}")]
+    FileRead(String),
+
+    #[error("File edit error: {0}")]
+    FileEdit(String),
+
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 

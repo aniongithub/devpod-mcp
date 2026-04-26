@@ -1,7 +1,7 @@
 use rmcp::model::ServerInfo;
 use rmcp::{tool, ServerHandler};
 
-use devcontainer_mcp_core::{auth, cli::CliOutput, codespaces, devcontainer, devpod, docker};
+use devcontainer_mcp_core::{auth, cli::CliOutput, codespaces, devcontainer, devpod, docker, file_ops};
 
 #[derive(Debug, Clone)]
 pub struct DevContainerMcp;
@@ -311,6 +311,132 @@ impl DevContainerMcp {
         }
     }
 
+    // -----------------------------------------------------------------------
+    // DevPod file operations
+    // -----------------------------------------------------------------------
+
+    #[tool(
+        name = "devpod_file_read",
+        description = "Read file content from a DevPod workspace. Returns content with line numbers. Supports optional line range."
+    )]
+    async fn devpod_file_read(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "Workspace name or ID")]
+        workspace: String,
+        #[tool(param)]
+        #[schemars(description = "Path to the file inside the workspace")]
+        path: String,
+        #[tool(param)]
+        #[schemars(description = "Start line number (1-based, inclusive)")]
+        start_line: Option<usize>,
+        #[tool(param)]
+        #[schemars(description = "End line number (1-based, inclusive). Use -1 or omit for end of file")]
+        end_line: Option<i64>,
+        #[tool(param)]
+        #[schemars(description = "User to run the command as")]
+        user: Option<String>,
+    ) -> String {
+        match devpod::file_read(&workspace, &path, user.as_deref()).await {
+            Ok(output) => {
+                if output.exit_code != 0 {
+                    return format!("Error (exit {}): {}", output.exit_code, output.stderr.trim());
+                }
+                let end = end_line.and_then(|e| if e < 0 { None } else { Some(e as usize) });
+                file_ops::format_with_line_numbers(&output.stdout, start_line, end)
+            }
+            Err(e) => format!("Error: {e}"),
+        }
+    }
+
+    #[tool(
+        name = "devpod_file_write",
+        description = "Create or overwrite a file in a DevPod workspace. Creates parent directories automatically."
+    )]
+    async fn devpod_file_write(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "Workspace name or ID")]
+        workspace: String,
+        #[tool(param)]
+        #[schemars(description = "Path to the file inside the workspace")]
+        path: String,
+        #[tool(param)]
+        #[schemars(description = "File content to write")]
+        content: String,
+        #[tool(param)]
+        #[schemars(description = "User to run the command as")]
+        user: Option<String>,
+    ) -> String {
+        match devpod::file_write(&workspace, &path, &content, user.as_deref()).await {
+            Ok(output) => {
+                if output.exit_code != 0 {
+                    format!("Error (exit {}): {}", output.exit_code, output.stderr.trim())
+                } else {
+                    format!("File written: {path}")
+                }
+            }
+            Err(e) => format!("Error: {e}"),
+        }
+    }
+
+    #[tool(
+        name = "devpod_file_edit",
+        description = "Make a surgical edit to a file in a DevPod workspace. Replaces exactly one occurrence of old_str with new_str. The old_str must match exactly one location in the file — include enough surrounding context to make it unique."
+    )]
+    async fn devpod_file_edit(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "Workspace name or ID")]
+        workspace: String,
+        #[tool(param)]
+        #[schemars(description = "Path to the file inside the workspace")]
+        path: String,
+        #[tool(param)]
+        #[schemars(description = "The exact string in the file to replace. Must match exactly once.")]
+        old_str: String,
+        #[tool(param)]
+        #[schemars(description = "The new string to replace old_str with")]
+        new_str: String,
+        #[tool(param)]
+        #[schemars(description = "User to run the command as")]
+        user: Option<String>,
+    ) -> String {
+        match devpod::file_edit(&workspace, &path, &old_str, &new_str, user.as_deref()).await {
+            Ok(msg) => msg,
+            Err(e) => format!("Error: {e}"),
+        }
+    }
+
+    #[tool(
+        name = "devpod_file_list",
+        description = "List directory contents in a DevPod workspace. Shows non-hidden files up to 2 levels deep."
+    )]
+    async fn devpod_file_list(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "Workspace name or ID")]
+        workspace: String,
+        #[tool(param)]
+        #[schemars(description = "Path to the directory inside the workspace (defaults to '.')")]
+        path: Option<String>,
+        #[tool(param)]
+        #[schemars(description = "User to run the command as")]
+        user: Option<String>,
+    ) -> String {
+        let dir = path.as_deref().unwrap_or(".");
+        match devpod::file_list(&workspace, dir, user.as_deref()).await {
+            Ok(output) => {
+                if output.exit_code != 0 {
+                    format!("Error (exit {}): {}", output.exit_code, output.stderr.trim())
+                } else {
+                    output.stdout
+                }
+            }
+            Err(e) => format!("Error: {e}"),
+        }
+    }
+
     // =======================================================================
     // devcontainer CLI tools
     // =======================================================================
@@ -471,6 +597,120 @@ impl DevContainerMcp {
                 serde_json::to_string(&info).unwrap_or_else(|e| format!("Error: {e}"))
             }
             Ok(None) => r#"{"state":"NotFound"}"#.to_string(),
+            Err(e) => format!("Error: {e}"),
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // devcontainer file operations
+    // -----------------------------------------------------------------------
+
+    #[tool(
+        name = "devcontainer_file_read",
+        description = "Read file content from a local dev container. Returns content with line numbers. Supports optional line range."
+    )]
+    async fn devcontainer_file_read(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "Path to the workspace folder")]
+        workspace_folder: String,
+        #[tool(param)]
+        #[schemars(description = "Path to the file inside the container")]
+        path: String,
+        #[tool(param)]
+        #[schemars(description = "Start line number (1-based, inclusive)")]
+        start_line: Option<usize>,
+        #[tool(param)]
+        #[schemars(description = "End line number (1-based, inclusive). Use -1 or omit for end of file")]
+        end_line: Option<i64>,
+    ) -> String {
+        match devcontainer::file_read(&workspace_folder, &path).await {
+            Ok(output) => {
+                if output.exit_code != 0 {
+                    return format!("Error (exit {}): {}", output.exit_code, output.stderr.trim());
+                }
+                let end = end_line.and_then(|e| if e < 0 { None } else { Some(e as usize) });
+                file_ops::format_with_line_numbers(&output.stdout, start_line, end)
+            }
+            Err(e) => format!("Error: {e}"),
+        }
+    }
+
+    #[tool(
+        name = "devcontainer_file_write",
+        description = "Create or overwrite a file in a local dev container. Creates parent directories automatically."
+    )]
+    async fn devcontainer_file_write(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "Path to the workspace folder")]
+        workspace_folder: String,
+        #[tool(param)]
+        #[schemars(description = "Path to the file inside the container")]
+        path: String,
+        #[tool(param)]
+        #[schemars(description = "File content to write")]
+        content: String,
+    ) -> String {
+        match devcontainer::file_write(&workspace_folder, &path, &content).await {
+            Ok(output) => {
+                if output.exit_code != 0 {
+                    format!("Error (exit {}): {}", output.exit_code, output.stderr.trim())
+                } else {
+                    format!("File written: {path}")
+                }
+            }
+            Err(e) => format!("Error: {e}"),
+        }
+    }
+
+    #[tool(
+        name = "devcontainer_file_edit",
+        description = "Make a surgical edit to a file in a local dev container. Replaces exactly one occurrence of old_str with new_str. The old_str must match exactly one location in the file — include enough surrounding context to make it unique."
+    )]
+    async fn devcontainer_file_edit(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "Path to the workspace folder")]
+        workspace_folder: String,
+        #[tool(param)]
+        #[schemars(description = "Path to the file inside the container")]
+        path: String,
+        #[tool(param)]
+        #[schemars(description = "The exact string in the file to replace. Must match exactly once.")]
+        old_str: String,
+        #[tool(param)]
+        #[schemars(description = "The new string to replace old_str with")]
+        new_str: String,
+    ) -> String {
+        match devcontainer::file_edit(&workspace_folder, &path, &old_str, &new_str).await {
+            Ok(msg) => msg,
+            Err(e) => format!("Error: {e}"),
+        }
+    }
+
+    #[tool(
+        name = "devcontainer_file_list",
+        description = "List directory contents in a local dev container. Shows non-hidden files up to 2 levels deep."
+    )]
+    async fn devcontainer_file_list(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "Path to the workspace folder")]
+        workspace_folder: String,
+        #[tool(param)]
+        #[schemars(description = "Path to the directory inside the container (defaults to '.')")]
+        path: Option<String>,
+    ) -> String {
+        let dir = path.as_deref().unwrap_or(".");
+        match devcontainer::file_list(&workspace_folder, dir).await {
+            Ok(output) => {
+                if output.exit_code != 0 {
+                    format!("Error (exit {}): {}", output.exit_code, output.stderr.trim())
+                } else {
+                    output.stdout
+                }
+            }
             Err(e) => format!("Error: {e}"),
         }
     }
@@ -770,6 +1010,148 @@ impl DevContainerMcp {
         };
         match codespaces::ports(&env, &codespace).await {
             Ok(output) => format_output(&output),
+            Err(e) => format!("Error: {e}"),
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Codespaces file operations
+    // -----------------------------------------------------------------------
+
+    #[tool(
+        name = "codespaces_file_read",
+        description = "Read file content from a GitHub Codespace. Returns content with line numbers. Supports optional line range. Requires a GitHub auth handle."
+    )]
+    async fn codespaces_file_read(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "GitHub auth handle (e.g. 'github-aniongithub')")]
+        auth: String,
+        #[tool(param)]
+        #[schemars(description = "Codespace name")]
+        codespace: String,
+        #[tool(param)]
+        #[schemars(description = "Path to the file inside the codespace")]
+        path: String,
+        #[tool(param)]
+        #[schemars(description = "Start line number (1-based, inclusive)")]
+        start_line: Option<usize>,
+        #[tool(param)]
+        #[schemars(description = "End line number (1-based, inclusive). Use -1 or omit for end of file")]
+        end_line: Option<i64>,
+    ) -> String {
+        let env = match auth::resolve_handle_env(&auth).await {
+            Ok(e) => e,
+            Err(e) => return format!("Auth error: {e}"),
+        };
+        match codespaces::file_read(&env, &codespace, &path).await {
+            Ok(output) => {
+                if output.exit_code != 0 {
+                    return format!("Error (exit {}): {}", output.exit_code, output.stderr.trim());
+                }
+                let end = end_line.and_then(|e| if e < 0 { None } else { Some(e as usize) });
+                file_ops::format_with_line_numbers(&output.stdout, start_line, end)
+            }
+            Err(e) => format!("Error: {e}"),
+        }
+    }
+
+    #[tool(
+        name = "codespaces_file_write",
+        description = "Create or overwrite a file in a GitHub Codespace. Creates parent directories automatically. Requires a GitHub auth handle."
+    )]
+    async fn codespaces_file_write(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "GitHub auth handle (e.g. 'github-aniongithub')")]
+        auth: String,
+        #[tool(param)]
+        #[schemars(description = "Codespace name")]
+        codespace: String,
+        #[tool(param)]
+        #[schemars(description = "Path to the file inside the codespace")]
+        path: String,
+        #[tool(param)]
+        #[schemars(description = "File content to write")]
+        content: String,
+    ) -> String {
+        let env = match auth::resolve_handle_env(&auth).await {
+            Ok(e) => e,
+            Err(e) => return format!("Auth error: {e}"),
+        };
+        match codespaces::file_write(&env, &codespace, &path, &content).await {
+            Ok(output) => {
+                if output.exit_code != 0 {
+                    format!("Error (exit {}): {}", output.exit_code, output.stderr.trim())
+                } else {
+                    format!("File written: {path}")
+                }
+            }
+            Err(e) => format!("Error: {e}"),
+        }
+    }
+
+    #[tool(
+        name = "codespaces_file_edit",
+        description = "Make a surgical edit to a file in a GitHub Codespace. Replaces exactly one occurrence of old_str with new_str. The old_str must match exactly one location in the file — include enough surrounding context to make it unique. Requires a GitHub auth handle."
+    )]
+    async fn codespaces_file_edit(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "GitHub auth handle (e.g. 'github-aniongithub')")]
+        auth: String,
+        #[tool(param)]
+        #[schemars(description = "Codespace name")]
+        codespace: String,
+        #[tool(param)]
+        #[schemars(description = "Path to the file inside the codespace")]
+        path: String,
+        #[tool(param)]
+        #[schemars(description = "The exact string in the file to replace. Must match exactly once.")]
+        old_str: String,
+        #[tool(param)]
+        #[schemars(description = "The new string to replace old_str with")]
+        new_str: String,
+    ) -> String {
+        let env = match auth::resolve_handle_env(&auth).await {
+            Ok(e) => e,
+            Err(e) => return format!("Auth error: {e}"),
+        };
+        match codespaces::file_edit(&env, &codespace, &path, &old_str, &new_str).await {
+            Ok(msg) => msg,
+            Err(e) => format!("Error: {e}"),
+        }
+    }
+
+    #[tool(
+        name = "codespaces_file_list",
+        description = "List directory contents in a GitHub Codespace. Shows non-hidden files up to 2 levels deep. Requires a GitHub auth handle."
+    )]
+    async fn codespaces_file_list(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "GitHub auth handle (e.g. 'github-aniongithub')")]
+        auth: String,
+        #[tool(param)]
+        #[schemars(description = "Codespace name")]
+        codespace: String,
+        #[tool(param)]
+        #[schemars(description = "Path to the directory inside the codespace (defaults to '.')")]
+        path: Option<String>,
+    ) -> String {
+        let env = match auth::resolve_handle_env(&auth).await {
+            Ok(e) => e,
+            Err(e) => return format!("Auth error: {e}"),
+        };
+        let dir = path.as_deref().unwrap_or(".");
+        match codespaces::file_list(&env, &codespace, dir).await {
+            Ok(output) => {
+                if output.exit_code != 0 {
+                    format!("Error (exit {}): {}", output.exit_code, output.stderr.trim())
+                } else {
+                    output.stdout
+                }
+            }
             Err(e) => format!("Error: {e}"),
         }
     }

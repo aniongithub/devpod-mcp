@@ -107,3 +107,67 @@ pub async fn ports(env: &HashMap<String, String>, codespace: &str) -> Result<Cli
     let args = vec!["ports", "-c", codespace, "--json", PORT_FIELDS];
     run_gh_cs(&args, true, Some(env)).await
 }
+
+// ---------------------------------------------------------------------------
+// File operations
+// ---------------------------------------------------------------------------
+
+/// Read a file from a Codespace.
+pub async fn file_read(
+    env: &HashMap<String, String>,
+    codespace: &str,
+    path: &str,
+) -> Result<CliOutput> {
+    let cmd = crate::file_ops::read_file_command(path);
+    ssh_exec(env, codespace, &cmd).await
+}
+
+/// Write (create or overwrite) a file in a Codespace.
+pub async fn file_write(
+    env: &HashMap<String, String>,
+    codespace: &str,
+    path: &str,
+    content: &str,
+) -> Result<CliOutput> {
+    let cmd = crate::file_ops::write_file_command(path, content);
+    ssh_exec(env, codespace, &cmd).await
+}
+
+/// Surgical edit: replace exactly one occurrence of `old_str` with `new_str`.
+pub async fn file_edit(
+    env: &HashMap<String, String>,
+    codespace: &str,
+    path: &str,
+    old_str: &str,
+    new_str: &str,
+) -> Result<String> {
+    let read_output = file_read(env, codespace, path).await?;
+    if read_output.exit_code != 0 {
+        return Err(crate::error::Error::FileRead(format!(
+            "Failed to read {path}: {}",
+            read_output.stderr.trim()
+        )));
+    }
+
+    let modified = crate::file_ops::apply_edit(&read_output.stdout, old_str, new_str)?;
+
+    let write_output = file_write(env, codespace, path, &modified).await?;
+    if write_output.exit_code != 0 {
+        return Err(crate::error::Error::FileEdit(format!(
+            "Failed to write {path}: {}",
+            write_output.stderr.trim()
+        )));
+    }
+
+    Ok(format!("Edit applied to {path}"))
+}
+
+/// List directory contents in a Codespace.
+pub async fn file_list(
+    env: &HashMap<String, String>,
+    codespace: &str,
+    path: &str,
+) -> Result<CliOutput> {
+    let cmd = crate::file_ops::list_dir_command(path);
+    ssh_exec(env, codespace, &cmd).await
+}

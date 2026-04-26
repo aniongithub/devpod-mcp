@@ -167,3 +167,67 @@ pub async fn import(args: &[&str]) -> Result<CliOutput> {
 pub async fn export(workspace: &str) -> Result<CliOutput> {
     run_devpod(&["export", workspace], false).await
 }
+
+// ---------------------------------------------------------------------------
+// File operations
+// ---------------------------------------------------------------------------
+
+/// Read a file from a DevPod workspace.
+pub async fn file_read(
+    workspace: &str,
+    path: &str,
+    user: Option<&str>,
+) -> Result<CliOutput> {
+    let cmd = crate::file_ops::read_file_command(path);
+    ssh_exec(workspace, &cmd, user, None).await
+}
+
+/// Write (create or overwrite) a file in a DevPod workspace.
+pub async fn file_write(
+    workspace: &str,
+    path: &str,
+    content: &str,
+    user: Option<&str>,
+) -> Result<CliOutput> {
+    let cmd = crate::file_ops::write_file_command(path, content);
+    ssh_exec(workspace, &cmd, user, None).await
+}
+
+/// Surgical edit: replace exactly one occurrence of `old_str` with `new_str`.
+pub async fn file_edit(
+    workspace: &str,
+    path: &str,
+    old_str: &str,
+    new_str: &str,
+    user: Option<&str>,
+) -> Result<String> {
+    let read_output = file_read(workspace, path, user).await?;
+    if read_output.exit_code != 0 {
+        return Err(Error::FileRead(format!(
+            "Failed to read {path}: {}",
+            read_output.stderr.trim()
+        )));
+    }
+
+    let modified = crate::file_ops::apply_edit(&read_output.stdout, old_str, new_str)?;
+
+    let write_output = file_write(workspace, path, &modified, user).await?;
+    if write_output.exit_code != 0 {
+        return Err(Error::FileEdit(format!(
+            "Failed to write {path}: {}",
+            write_output.stderr.trim()
+        )));
+    }
+
+    Ok(format!("Edit applied to {path}"))
+}
+
+/// List directory contents in a DevPod workspace.
+pub async fn file_list(
+    workspace: &str,
+    path: &str,
+    user: Option<&str>,
+) -> Result<CliOutput> {
+    let cmd = crate::file_ops::list_dir_command(path);
+    ssh_exec(workspace, &cmd, user, None).await
+}
