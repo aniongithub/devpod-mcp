@@ -5,3 +5,4 @@ pub mod devcontainer;
 pub mod devpod;
 pub mod docker;
 pub mod error;
+pub mod file_ops;

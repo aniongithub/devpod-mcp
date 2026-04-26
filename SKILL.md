@@ -35,6 +35,18 @@ tools:
   - codespaces_delete
   - codespaces_view
   - codespaces_ports
+  - devpod_file_read
+  - devpod_file_write
+  - devpod_file_edit
+  - devpod_file_list
+  - devcontainer_file_read
+  - devcontainer_file_write
+  - devcontainer_file_edit
+  - devcontainer_file_list
+  - codespaces_file_read
+  - codespaces_file_write
+  - codespaces_file_edit
+  - codespaces_file_list
 ---
 
 # DevContainer MCP Skill
@@ -163,3 +175,46 @@ If `devpod_up`, `devcontainer_up`, or `codespaces_create` returns errors:
 - ✅ DO ask the user which account/machine type to use
 - ✅ DO use `devpod_ssh`, `devcontainer_exec`, or `codespaces_ssh` for everything
 - ✅ DO check `.devcontainer/devcontainer.json` first
+
+## File Operations
+
+**All backends support built-in file operations — no need to construct shell commands.**
+
+These tools mirror familiar editing tools (read, write, edit, list) and handle escaping, encoding, and directory creation automatically.
+
+### Reading files
+```
+devpod_file_read(workspace: "my-ws", path: "/workspaces/project/src/main.rs")
+devcontainer_file_read(workspace_folder: "/path/to/project", path: "/workspaces/project/src/main.rs")
+codespaces_file_read(auth: "github-user", codespace: "name", path: "src/main.rs")
+```
+Supports optional `start_line` and `end_line` for reading specific ranges.
+
+### Writing files
+```
+devpod_file_write(workspace: "my-ws", path: "/workspaces/project/new_file.rs", content: "fn main() {}")
+devcontainer_file_write(workspace_folder: "/path/to/project", path: "new_file.rs", content: "fn main() {}")
+codespaces_file_write(auth: "github-user", codespace: "name", path: "src/new.rs", content: "...")
+```
+Creates parent directories automatically.
+
+### Editing files (surgical replacement)
+```
+devpod_file_edit(workspace: "my-ws", path: "src/main.rs", old_str: "fn old()", new_str: "fn new()")
+devcontainer_file_edit(workspace_folder: "/path/to/project", path: "src/lib.rs", old_str: "v1", new_str: "v2")
+codespaces_file_edit(auth: "github-user", codespace: "name", path: "src/lib.rs", old_str: "TODO", new_str: "DONE")
+```
+`old_str` must match exactly once in the file. Include surrounding context to make it unique.
+
+### Listing directories
+```
+devpod_file_list(workspace: "my-ws", path: "/workspaces/project/src")
+devcontainer_file_list(workspace_folder: "/path/to/project", path: "src")
+codespaces_file_list(auth: "github-user", codespace: "name", path: ".")
+```
+Shows non-hidden files up to 2 levels deep.
+
+### When to use file tools vs exec/ssh
+- ✅ **Use file tools** for reading, writing, and editing source files
+- ✅ **Use exec/ssh** for running builds, tests, and commands
+- ❌ **Don't** construct `sed`, `cat`, or `echo` commands via exec for file editing
