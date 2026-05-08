@@ -100,20 +100,13 @@ pub async fn status(workspace_folder: &str) -> Result<Option<docker::ContainerIn
 // ---------------------------------------------------------------------------
 
 /// Read a file from a dev container.
-pub async fn file_read(
-    workspace_folder: &str,
-    path: &str,
-) -> Result<CliOutput> {
+pub async fn file_read(workspace_folder: &str, path: &str) -> Result<CliOutput> {
     let cmd = crate::file_ops::read_file_command(path);
     exec(workspace_folder, "sh", &["-c", &cmd]).await
 }
 
 /// Write (create or overwrite) a file in a dev container.
-pub async fn file_write(
-    workspace_folder: &str,
-    path: &str,
-    content: &str,
-) -> Result<CliOutput> {
+pub async fn file_write(workspace_folder: &str, path: &str, content: &str) -> Result<CliOutput> {
     let cmd = crate::file_ops::write_file_command(path, content);
     exec(workspace_folder, "sh", &["-c", &cmd]).await
 }
@@ -147,10 +140,7 @@ pub async fn file_edit(
 }
 
 /// List directory contents in a dev container.
-pub async fn file_list(
-    workspace_folder: &str,
-    path: &str,
-) -> Result<CliOutput> {
+pub async fn file_list(workspace_folder: &str, path: &str) -> Result<CliOutput> {
     let cmd = crate::file_ops::list_dir_command(path);
     exec(workspace_folder, "sh", &["-c", &cmd]).await
 }

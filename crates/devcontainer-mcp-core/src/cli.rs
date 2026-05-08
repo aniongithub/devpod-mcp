@@ -29,6 +29,9 @@ pub enum CliBinary {
     Gcloud,
     /// Kubernetes CLI
     Kubectl,
+    #[cfg(target_os = "windows")]
+    /// Windows Subsystem for Linux
+    Wsl,
 }
 
 impl CliBinary {
@@ -41,6 +44,8 @@ impl CliBinary {
             CliBinary::Aws => "aws",
             CliBinary::Gcloud => "gcloud",
             CliBinary::Kubectl => "kubectl",
+            #[cfg(target_os = "windows")]
+            CliBinary::Wsl => "wsl",
         }
     }
 
@@ -53,6 +58,8 @@ impl CliBinary {
             CliBinary::Aws => Error::AwsCliNotFound,
             CliBinary::Gcloud => Error::GcloudCliNotFound,
             CliBinary::Kubectl => Error::KubectlNotFound,
+            #[cfg(target_os = "windows")]
+            CliBinary::Wsl => Error::WslNotFound,
         }
     }
 }
