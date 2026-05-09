@@ -1,24 +1,139 @@
+use std::collections::HashSet;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 const FRONTMATTER_NAME: &str = "devcontainer-mcp";
 const FRONTMATTER_DESC: &str =
     "Manage dev container environments via MCP tools (DevPod, devcontainer CLI, Codespaces)";
 
-/// Fragment order for the assembled SKILL.md body.
-const FRAGMENTS: &[&str] = &[
-    "header.md",
-    "core-rule.md",
-    "auth.md",
-    "choosing-backend.md",
-    "devpod.md",
-    "devcontainer.md",
-    "codespaces.md",
-    // WSL fragment inserted here on Windows builds
-    "self-healing.md",
-    "footer.md",
-    "file-ops.md",
-];
+/// Resolve the set of active tags for the current build target.
+fn active_tags() -> HashSet<String> {
+    let mut tags = HashSet::new();
+    tags.insert("core".to_string());
+
+    let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
+    match target_os.as_str() {
+        "windows" => {
+            tags.insert("windows".to_string());
+            tags.insert("docker-desktop".to_string());
+            tags.insert("wsl".to_string());
+        }
+        "macos" => {
+            tags.insert("macos".to_string());
+            tags.insert("docker-desktop".to_string());
+        }
+        "linux" => {
+            tags.insert("linux".to_string());
+        }
+        _ => {}
+    }
+
+    tags
+}
+
+/// Parse YAML frontmatter from a file's content.
+/// Returns (tags, order, body) where body is everything after the closing `---`.
+/// If no frontmatter is found, returns empty tags, order 0, and the full content.
+fn parse_frontmatter(content: &str) -> (Vec<String>, i64, &str) {
+    let trimmed = content.trim_start();
+    if !trimmed.starts_with("---") {
+        return (vec![], 0, content);
+    }
+
+    // Find the closing ---
+    let after_open = &trimmed[3..];
+    let close_pos = match after_open.find("\n---") {
+        Some(pos) => pos,
+        None => return (vec![], 0, content),
+    };
+
+    let frontmatter = &after_open[..close_pos];
+    let body_start = 3 + close_pos + 4; // "---" + frontmatter + "\n---"
+    let body = trimmed[body_start..].trim_start_matches('\n');
+
+    let mut tags = vec![];
+    let mut order: i64 = 0;
+
+    for line in frontmatter.lines() {
+        let line = line.trim();
+        if let Some(rest) = line.strip_prefix("tags:") {
+            // Parse [tag1, tag2] or tag1, tag2
+            let rest = rest.trim().trim_start_matches('[').trim_end_matches(']');
+            for tag in rest.split(',') {
+                let tag = tag.trim();
+                if !tag.is_empty() {
+                    tags.push(tag.to_string());
+                }
+            }
+        } else if let Some(rest) = line.strip_prefix("order:") {
+            order = rest.trim().parse().unwrap_or(0);
+        }
+    }
+
+    (tags, order, body)
+}
+
+/// Check if a fragment's required tags are all present in the active set.
+/// Empty tags means always included.
+fn tags_match(required: &[String], active: &HashSet<String>) -> bool {
+    required.iter().all(|tag| active.contains(tag))
+}
+
+/// Discover and sort all .md files in a directory, filtering by active tags.
+fn collect_fragments(dir: &Path, active: &HashSet<String>) -> Vec<(i64, String)> {
+    let mut entries: Vec<PathBuf> = fs::read_dir(dir)
+        .unwrap_or_else(|e| panic!("cannot read {}: {e}", dir.display()))
+        .filter_map(Result::ok)
+        .map(|e| e.path())
+        .filter(|p| p.extension().is_some_and(|ext| ext == "md"))
+        .collect();
+    entries.sort();
+
+    let mut fragments: Vec<(i64, String)> = Vec::new();
+
+    for path in entries {
+        let content = fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()));
+        let (tags, order, body) = parse_frontmatter(&content);
+
+        if tags_match(&tags, active) {
+            fragments.push((order, body.to_string()));
+        }
+    }
+
+    fragments.sort_by_key(|(order, _)| *order);
+    fragments
+}
+
+/// Discover all .txt tool lists, filtering by active tags.
+fn collect_tools(dir: &Path, active: &HashSet<String>) -> Vec<String> {
+    let mut entries: Vec<PathBuf> = fs::read_dir(dir)
+        .unwrap_or_else(|e| panic!("cannot read {}: {e}", dir.display()))
+        .filter_map(Result::ok)
+        .map(|e| e.path())
+        .filter(|p| p.extension().is_some_and(|ext| ext == "txt"))
+        .collect();
+    entries.sort();
+
+    let mut tools = Vec::new();
+
+    for path in entries {
+        let content = fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()));
+        let (tags, _, body) = parse_frontmatter(&content);
+
+        if tags_match(&tags, active) {
+            for line in body.lines() {
+                let trimmed = line.trim();
+                if !trimmed.is_empty() {
+                    tools.push(trimmed.to_string());
+                }
+            }
+        }
+    }
+
+    tools
+}
 
 fn main() {
     let manifest_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
@@ -31,38 +146,10 @@ fn main() {
     let tools_dir = skills_dir.join("_tools");
     let output_path = workspace_root.join("SKILL.md");
 
-    // Use CARGO_CFG_TARGET_OS (the *target* platform, not the host) so that
-    // cross-compiling for Windows from Linux still includes WSL content.
-    let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
-    let is_windows_target = target_os == "windows";
+    let active = active_tags();
 
-    // --- Collect tool names from _tools/*.txt -----------------------------------
-    let mut tools: Vec<String> = Vec::new();
-    let mut tool_files: Vec<PathBuf> = fs::read_dir(&tools_dir)
-        .unwrap_or_else(|e| panic!("cannot read {}: {e}", tools_dir.display()))
-        .filter_map(Result::ok)
-        .map(|e| e.path())
-        .filter(|p| p.extension().is_some_and(|ext| ext == "txt"))
-        .collect();
-    tool_files.sort();
-
-    // On non-Windows targets, skip wsl.txt
-    for path in &tool_files {
-        let is_wsl = path
-            .file_stem()
-            .is_some_and(|s| s.to_str().is_some_and(|s| s == "wsl"));
-        if is_wsl && !is_windows_target {
-            continue;
-        }
-        let content = fs::read_to_string(path)
-            .unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()));
-        for line in content.lines() {
-            let trimmed = line.trim();
-            if !trimmed.is_empty() {
-                tools.push(trimmed.to_string());
-            }
-        }
-    }
+    // --- Collect tool names -----------------------------------------------------
+    let tools = collect_tools(&tools_dir, &active);
 
     // --- Build YAML frontmatter -------------------------------------------------
     let mut output = String::from("---\n");
@@ -74,26 +161,11 @@ fn main() {
     }
     output.push_str("---\n");
 
-    // --- Assemble markdown body -------------------------------------------------
-    let insert_wsl_after = "codespaces.md";
-
-    for &fragment_name in FRAGMENTS {
-        let path = skills_dir.join(fragment_name);
-        let content = fs::read_to_string(&path)
-            .unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()));
+    // --- Assemble markdown body (ordered by frontmatter `order` field) -----------
+    let fragments = collect_fragments(&skills_dir, &active);
+    for (_, body) in &fragments {
         output.push('\n');
-        output.push_str(&content);
-
-        // On Windows targets, insert WSL section right after codespaces
-        if is_windows_target && fragment_name == insert_wsl_after {
-            let wsl_path = skills_dir.join("wsl.md");
-            if wsl_path.exists() {
-                let wsl_content = fs::read_to_string(&wsl_path)
-                    .unwrap_or_else(|e| panic!("cannot read {}: {e}", wsl_path.display()));
-                output.push('\n');
-                output.push_str(&wsl_content);
-            }
-        }
+        output.push_str(body);
     }
 
     // --- Write output -----------------------------------------------------------

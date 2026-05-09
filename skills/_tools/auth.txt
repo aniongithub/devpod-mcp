@@ -1,3 +1,6 @@
+---
+tags: [core]
+---
 auth_status
 auth_login
 auth_select

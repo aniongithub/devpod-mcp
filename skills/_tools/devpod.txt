@@ -1,3 +1,6 @@
+---
+tags: [core]
+---
 devpod_up
 devpod_stop
 devpod_delete

@@ -1,3 +1,7 @@
+---
+tags: [core]
+order: 50
+---
 ## Workflow: DevPod
 
 ### 1. Create or start the workspace

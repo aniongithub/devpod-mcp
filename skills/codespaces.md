@@ -1,3 +1,7 @@
+---
+tags: [core]
+order: 70
+---
 ## Workflow: Codespaces
 
 ### 1. Authenticate

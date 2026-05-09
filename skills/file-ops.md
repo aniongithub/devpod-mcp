@@ -1,3 +1,7 @@
+---
+tags: [core]
+order: 100
+---
 ## File Operations
 
 **All backends support built-in file operations — no need to construct shell commands.**

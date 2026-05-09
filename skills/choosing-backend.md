@@ -1,3 +1,7 @@
+---
+tags: [core]
+order: 40
+---
 ## Choosing a Backend
 
 1. **Local Docker + devcontainer CLI** — simplest for local development, no auth needed

@@ -1,3 +1,6 @@
+---
+tags: [core]
+---
 codespaces_create
 codespaces_list
 codespaces_ssh

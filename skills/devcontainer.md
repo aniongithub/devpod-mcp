@@ -1,3 +1,7 @@
+---
+tags: [core]
+order: 60
+---
 ## Workflow: devcontainer CLI
 
 ### 1. Start the dev container

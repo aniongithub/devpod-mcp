@@ -1,3 +1,7 @@
+---
+tags: [core]
+order: 90
+---
 ## What NOT to do
 
 - ❌ Do NOT install packages on the host
