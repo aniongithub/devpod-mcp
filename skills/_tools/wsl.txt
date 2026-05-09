@@ -1,0 +1,9 @@
+wsl_list
+wsl_exec
+wsl_terminate
+wsl_shutdown
+wsl_set_default
+wsl_file_read
+wsl_file_write
+wsl_file_edit
+wsl_file_list

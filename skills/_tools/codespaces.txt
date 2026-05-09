@@ -1,0 +1,11 @@
+codespaces_create
+codespaces_list
+codespaces_ssh
+codespaces_stop
+codespaces_delete
+codespaces_view
+codespaces_ports
+codespaces_file_read
+codespaces_file_write
+codespaces_file_edit
+codespaces_file_list

@@ -88,3 +88,26 @@ jobs:
           files: |
             install.sh
             install.ps1
+
+  build-windows:
+    name: Build devcontainer-mcp-windows-x64
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: x86_64-pc-windows-msvc
+
+      - name: Build
+        run: cargo build --release --target x86_64-pc-windows-msvc -p devcontainer-mcp
+
+      - name: Package binary
+        run: Compress-Archive -Path target/x86_64-pc-windows-msvc/release/devcontainer-mcp.exe -DestinationPath devcontainer-mcp-windows-x64.zip
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v3
+        with:
+          files: devcontainer-mcp-windows-x64.zip

@@ -16,3 +16,4 @@ clap = { workspace = true }
 rmcp = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+schemars = "1"

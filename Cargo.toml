@@ -18,6 +18,6 @@ thiserror = "2"
 anyhow = "1"
 bollard = "0.18"
 clap = { version = "4", features = ["derive"] }
-rmcp = { version = "0.1", features = ["server", "transport-io"] }
+rmcp = { version = "1.6", features = ["server", "transport-io", "schemars"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

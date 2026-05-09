@@ -1,8 +1,8 @@
 mod tools;
 
 use clap::{Parser, Subcommand};
+use rmcp::transport::stdio;
 use rmcp::ServiceExt;
-use tokio::io::{stdin, stdout};
 
 #[derive(Parser)]
 #[command(name = "devcontainer-mcp")]
@@ -32,7 +32,7 @@ async fn main() -> anyhow::Result<()> {
         Commands::Serve => {
             tracing::info!("Starting devcontainer-mcp MCP server over stdio");
             let service = tools::DevContainerMcp::new();
-            let server = service.serve((stdin(), stdout())).await?;
+            let server = service.serve(stdio()).await?;
             server.waiting().await?;
         }
     }

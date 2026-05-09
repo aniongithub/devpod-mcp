@@ -173,11 +173,7 @@ pub async fn export(workspace: &str) -> Result<CliOutput> {
 // ---------------------------------------------------------------------------
 
 /// Read a file from a DevPod workspace.
-pub async fn file_read(
-    workspace: &str,
-    path: &str,
-    user: Option<&str>,
-) -> Result<CliOutput> {
+pub async fn file_read(workspace: &str, path: &str, user: Option<&str>) -> Result<CliOutput> {
     let cmd = crate::file_ops::read_file_command(path);
     ssh_exec(workspace, &cmd, user, None).await
 }
@@ -223,11 +219,7 @@ pub async fn file_edit(
 }
 
 /// List directory contents in a DevPod workspace.
-pub async fn file_list(
-    workspace: &str,
-    path: &str,
-    user: Option<&str>,
-) -> Result<CliOutput> {
+pub async fn file_list(workspace: &str, path: &str, user: Option<&str>) -> Result<CliOutput> {
     let cmd = crate::file_ops::list_dir_command(path);
     ssh_exec(workspace, &cmd, user, None).await
 }

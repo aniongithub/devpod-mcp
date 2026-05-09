@@ -6,6 +6,28 @@ tools:
   - auth_login
   - auth_select
   - auth_logout
+  - codespaces_create
+  - codespaces_list
+  - codespaces_ssh
+  - codespaces_stop
+  - codespaces_delete
+  - codespaces_view
+  - codespaces_ports
+  - codespaces_file_read
+  - codespaces_file_write
+  - codespaces_file_edit
+  - codespaces_file_list
+  - devcontainer_up
+  - devcontainer_exec
+  - devcontainer_build
+  - devcontainer_read_config
+  - devcontainer_stop
+  - devcontainer_remove
+  - devcontainer_status
+  - devcontainer_file_read
+  - devcontainer_file_write
+  - devcontainer_file_edit
+  - devcontainer_file_list
   - devpod_up
   - devpod_stop
   - devpod_delete
@@ -21,32 +43,10 @@ tools:
   - devpod_context_use
   - devpod_container_inspect
   - devpod_container_logs
-  - devcontainer_up
-  - devcontainer_exec
-  - devcontainer_build
-  - devcontainer_read_config
-  - devcontainer_stop
-  - devcontainer_remove
-  - devcontainer_status
-  - codespaces_create
-  - codespaces_list
-  - codespaces_ssh
-  - codespaces_stop
-  - codespaces_delete
-  - codespaces_view
-  - codespaces_ports
   - devpod_file_read
   - devpod_file_write
   - devpod_file_edit
   - devpod_file_list
-  - devcontainer_file_read
-  - devcontainer_file_write
-  - devcontainer_file_edit
-  - devcontainer_file_list
-  - codespaces_file_read
-  - codespaces_file_write
-  - codespaces_file_edit
-  - codespaces_file_list
 ---
 
 # DevContainer MCP Skill
