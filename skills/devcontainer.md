@@ -4,6 +4,8 @@ order: 60
 ---
 ## Workflow: devcontainer CLI
 
+> **Use these tools — not raw `devcontainer` or `docker` CLI commands.**
+
 ### 1. Start the dev container
 ```
 devcontainer_up(workspace_folder: "/path/to/project")

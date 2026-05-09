@@ -4,6 +4,8 @@ order: 50
 ---
 ## Workflow: DevPod
 
+> **Use these tools — not raw `devpod` CLI commands.**
+
 ### 1. Create or start the workspace
 ```
 devpod_up(args: "/path/to/project --id my-project --provider docker")
