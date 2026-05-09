@@ -4,7 +4,10 @@
 //! formatting, and helpers to build shell commands for reading/writing files
 //! through any backend (DevPod SSH, devcontainer exec, Codespaces SSH).
 
+use std::borrow::Cow;
+
 use base64::{engine::general_purpose::STANDARD, Engine};
+use shell_escape::escape;
 
 use crate::error::{Error, Result};
 
@@ -52,32 +55,30 @@ pub fn apply_edit(content: &str, old_str: &str, new_str: &str) -> Result<String>
     Ok(content.replacen(old_str, new_str, 1))
 }
 
+/// Shell-escape a string for safe embedding in a shell command.
+fn quote(s: &str) -> String {
+    escape(Cow::Borrowed(s)).into_owned()
+}
+
 /// Build a shell command that reads a file via `cat`.
 pub fn read_file_command(path: &str) -> String {
-    format!("cat '{}'", shell_escape(path))
+    format!("cat {}", quote(path))
 }
 
 /// Build a shell command that writes base64-encoded content to a file,
 /// creating parent directories as needed.
 pub fn write_file_command(path: &str, content: &str) -> String {
-    let escaped = shell_escape(path);
+    let path = quote(path);
     let encoded = STANDARD.encode(content.as_bytes());
-    format!(
-        "mkdir -p \"$(dirname '{escaped}')\" && printf '%s' '{encoded}' | base64 -d > '{escaped}'"
-    )
+    format!("mkdir -p \"$(dirname {path})\" && printf '%s' '{encoded}' | base64 -d > {path}")
 }
 
 /// Build a shell command that lists a directory (non-hidden, up to 2 levels).
 pub fn list_dir_command(path: &str) -> String {
     format!(
-        "find '{}' -maxdepth 2 -not -path '*/.*' | sort",
-        shell_escape(path)
+        "find {} -maxdepth 2 -not -path '*/.*' | sort",
+        quote(path)
     )
-}
-
-/// Minimal single-quote escaping for shell arguments.
-fn shell_escape(s: &str) -> String {
-    s.replace('\'', "'\\''")
 }
 
 #[cfg(test)]
@@ -122,7 +123,27 @@ mod tests {
     }
 
     #[test]
-    fn test_shell_escape() {
-        assert_eq!(shell_escape("it's"), "it'\\''s");
+    fn test_quote_simple_path() {
+        assert_eq!(quote("simple"), "simple");
+    }
+
+    #[test]
+    fn test_quote_path_with_spaces() {
+        let result = quote("path with spaces");
+        assert!(result.contains('\'') || result.contains('\\'));
+    }
+
+    #[test]
+    fn test_quote_path_with_single_quote() {
+        let result = quote("it's");
+        // Should not break when used in a shell command
+        assert!(!result.contains("it's") || result.contains("\\'"));
+    }
+
+    #[test]
+    fn test_quote_path_with_dollar() {
+        let result = quote("$HOME/file");
+        // Should be escaped so $HOME is not expanded
+        assert_ne!(result, "$HOME/file");
     }
 }
