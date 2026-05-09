@@ -1,3 +1,6 @@
+---
+tags: [core]
+---
 devcontainer_up
 devcontainer_exec
 devcontainer_build

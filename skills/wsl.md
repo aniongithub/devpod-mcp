@@ -1,4 +1,10 @@
+---
+tags: [wsl]
+order: 75
+---
 ## Workflow: WSL (Windows only)
+
+> **Use these tools — not raw `wsl.exe` commands.**
 
 WSL tools are available when running on Windows. They let you manage and interact with WSL distributions directly.
 

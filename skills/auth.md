@@ -1,3 +1,7 @@
+---
+tags: [core]
+order: 30
+---
 ## Authentication
 
 **Before using Codespaces tools, you MUST obtain an auth handle.**

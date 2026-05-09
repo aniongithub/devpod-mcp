@@ -56,9 +56,11 @@ You have access to `devcontainer-mcp`, an MCP server that manages dev container 
 - **devcontainer CLI** (`devcontainer_*` tools) — local Docker via the official CLI
 - **GitHub Codespaces** (`codespaces_*` tools) — cloud-hosted environments
 
-## Core Rule
+## Core Rules
 
 **If a project has `.devcontainer/devcontainer.json`, ALL work MUST happen inside a dev container — never install dependencies, run builds, or execute code directly on the host.**
+
+**Use ONLY the MCP tools listed here.** Do not invoke `docker`, `devcontainer`, `devpod`, `gh`, or `wsl` CLI commands directly — the MCP tools wrap these CLIs with proper error handling, auth resolution, and escaping. Direct CLI usage bypasses these safeguards.
 
 ## Authentication
 
@@ -96,6 +98,8 @@ Supported auth providers: `github`, `aws`, `azure`, `gcloud`, `kubernetes`
 
 ## Workflow: DevPod
 
+> **Use these tools — not raw `devpod` CLI commands.**
+
 ### 1. Create or start the workspace
 ```
 devpod_up(args: "/path/to/project --id my-project --provider docker")
@@ -118,6 +122,8 @@ devpod_stop(workspace: "my-project")
 
 ## Workflow: devcontainer CLI
 
+> **Use these tools — not raw `devcontainer` or `docker` CLI commands.**
+
 ### 1. Start the dev container
 ```
 devcontainer_up(workspace_folder: "/path/to/project")
@@ -134,6 +140,8 @@ devcontainer_stop(workspace_folder: "/path/to/project")
 ```
 
 ## Workflow: Codespaces
+
+> **Use these tools — not raw `gh codespace` CLI commands.**
 
 ### 1. Authenticate
 ```
@@ -171,6 +179,7 @@ If `devpod_up`, `devcontainer_up`, or `codespaces_create` returns errors:
 - ❌ Do NOT install packages on the host
 - ❌ Do NOT run builds on the host
 - ❌ Do NOT modify the host's global config
+- ❌ Do NOT run `docker`, `devcontainer`, `devpod`, `gh`, or `wsl` CLI commands directly — use the MCP tools
 - ✅ DO authenticate before using codespaces tools
 - ✅ DO ask the user which account/machine type to use
 - ✅ DO use `devpod_ssh`, `devcontainer_exec`, or `codespaces_ssh` for everything

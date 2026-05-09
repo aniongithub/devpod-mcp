@@ -1,3 +1,7 @@
+---
+tags: [core]
+order: 10
+---
 # DevContainer MCP Skill
 
 You have access to `devcontainer-mcp`, an MCP server that manages dev container environments across three backends:

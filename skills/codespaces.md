@@ -1,4 +1,10 @@
+---
+tags: [core]
+order: 70
+---
 ## Workflow: Codespaces
+
+> **Use these tools — not raw `gh codespace` CLI commands.**
 
 ### 1. Authenticate
 ```

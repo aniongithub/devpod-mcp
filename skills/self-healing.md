@@ -1,3 +1,7 @@
+---
+tags: [core]
+order: 80
+---
 ## Self-Healing
 
 If `devpod_up`, `devcontainer_up`, or `codespaces_create` returns errors:
