@@ -528,11 +528,11 @@ code {
   gap: 0.5rem;
   padding: 0.3rem 0.9rem;
   border-radius: 999px;
-  background: var(--bg);
-  border: 1px solid var(--border);
+  background: #2a2f42;
+  border: 1px solid #3d4358;
   font-size: 0.8rem;
   font-weight: 500;
-  color: var(--text-dim);
+  color: #cbd5e1;
 }
 
 /* ---- Tools grid ---- */
@@ -561,6 +561,15 @@ code {
   padding: 0.1rem 0.5rem;
   border-radius: 999px;
   font-weight: 600;
+}
+.tool-platform {
+  font-size: 0.65rem;
+  background: #2a2f42;
+  color: #cbd5e1;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-weight: 500;
+  border: 1px solid #3d4358;
 }
 .tool-group ul {
   list-style: none;

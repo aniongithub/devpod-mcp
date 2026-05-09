@@ -49,7 +49,7 @@
       </div>
       <h1>Give your AI agent its own<br>dev environment — <span class="gradient-text">not yours.</span></h1>
       <p class="hero-sub">
-        45 MCP tools that let AI coding agents create, manage, read, edit, and write files inside
+        45+ first-class, OS and backend specific MCP tools that let AI coding agents create, manage, read, edit, and write files inside
         <a href="https://containers.dev/">dev containers</a>, keeping your machine clean
         and your environment reproducible and deploy-friendly. Use local Docker,
         <a href="https://github.com/features/codespaces">GitHub Codespaces</a>,
@@ -86,7 +86,7 @@
             </button>
           </div>
         </div>
-        <p class="install-note" id="install-note-windows" style="visibility:hidden">Runs inside WSL — MCP clients on Windows launch via <code>wsl</code> bridge. Requires <a href="https://learn.microsoft.com/en-us/windows/wsl/install">WSL 2</a>.</p>
+        <p class="install-note" id="install-note-windows" style="visibility:hidden">Includes native WSL tools on Windows. MCP clients launch via <code>wsl</code> bridge. Requires <a href="https://learn.microsoft.com/en-us/windows/wsl/install">WSL 2</a>.</p>
       </div>
       <div class="hero-works-with">
         <span class="works-with-label">and start coding with</span>
@@ -106,7 +106,7 @@
         </div>
       </div>
       <div class="hero-platforms">
-        linux-x64 · linux-arm64 · darwin-x64 · darwin-arm64 · windows (WSL)
+        linux-x64 · linux-arm64 · darwin-x64 · darwin-arm64 · windows-x64
       </div>
     </div>
   </section>
@@ -228,7 +228,7 @@
   <!-- Tools -->
   <section class="section" id="tools">
     <div class="section-inner">
-      <h2 class="section-title">45 MCP tools</h2>
+      <h2 class="section-title">45+ first-class, OS and backend specific tools</h2>
       <p class="section-sub">Everything an agent needs to manage dev containers end-to-end.</p>
       <div class="tools-grid">
         <div class="tool-group">
@@ -272,6 +272,15 @@
             <li>codespaces_ssh</li>
             <li>codespaces_ports</li>
             <li>codespaces_file_read / write / edit / list</li>
+          </ul>
+        </div>
+        <div class="tool-group">
+          <h3>WSL <span class="tool-count">9</span> <span class="tool-platform">Windows</span></h3>
+          <ul>
+            <li>wsl_list / exec</li>
+            <li>wsl_terminate / shutdown</li>
+            <li>wsl_set_default</li>
+            <li>wsl_file_read / write / edit / list</li>
           </ul>
         </div>
       </div>
