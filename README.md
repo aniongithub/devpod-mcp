@@ -6,6 +6,12 @@
 
 `devcontainer-mcp` is an MCP server that lets AI coding agents create, manage, and work inside [dev containers](https://containers.dev/) across three backends: local Docker, [DevPod](https://devpod.sh/), and [GitHub Codespaces](https://github.com/features/codespaces). The agent builds, tests, and ships code in an isolated container — your laptop stays clean.
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/aniongithub/devcontainer-mcp/gh-pages/screengrabs/devcontainer-mcp-local-docker.gif" alt="devcontainer-mcp local Docker demo" width="720">
+</p>
+
+> Works with **GitHub Copilot**, **Claude**, **Cursor**, and any MCP-compatible client.
+
 ## The Problem
 
 When AI agents write code, they need to run it somewhere. Today that means your host machine:
@@ -14,6 +20,7 @@ When AI agents write code, they need to run it somewhere. Today that means your 
 - 🔴 **"Works on my machine"** — agents assume your local toolchain matches production
 - 🔴 **No isolation** — one project's dependencies break another
 - 🔴 **Security risk** — agents run arbitrary commands with your user privileges
+- 🔴 **Hardware constraints** — you're limited to your local machine's resources
 
 ## The Solution
 
@@ -35,6 +42,10 @@ Agent: "Let me build this project..."
 ```
 
 ## Quick Install
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/aniongithub/devcontainer-mcp/gh-pages/screengrabs/devcontainer-mcp-install.gif" alt="devcontainer-mcp install demo" width="720">
+</p>
 
 ### Linux / macOS
 
@@ -78,6 +89,10 @@ graph TD
 ```
 
 ## Three Backends, One Interface
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/aniongithub/devcontainer-mcp/gh-pages/screengrabs/devcontainer-mcp-codespaces.gif" alt="devcontainer-mcp Codespaces demo" width="720">
+</p>
 
 | Backend | Best for | Requires | Auth needed? |
 |---------|----------|----------|:---:|
