@@ -1,6 +1,7 @@
 # devcontainer-mcp
 
 [![CI](https://github.com/aniongithub/devcontainer-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/aniongithub/devcontainer-mcp/actions/workflows/ci.yml)
+[![Website](https://img.shields.io/badge/website-anonline.me-blue)](https://www.anonline.me/devcontainer-mcp)
 
 **Give your AI agent its own dev environment — not yours.**
 
