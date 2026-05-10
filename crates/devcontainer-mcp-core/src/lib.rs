@@ -6,5 +6,3 @@ pub mod devpod;
 pub mod docker;
 pub mod error;
 pub mod file_ops;
-#[cfg(target_os = "windows")]
-pub mod wsl;

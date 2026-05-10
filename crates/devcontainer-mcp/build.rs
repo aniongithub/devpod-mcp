@@ -19,7 +19,6 @@ fn active_tags() -> HashSet<String> {
     tags.insert("macos".to_string());
     tags.insert("windows".to_string());
     tags.insert("docker-desktop".to_string());
-    tags.insert("wsl".to_string());
     tags
 }
 

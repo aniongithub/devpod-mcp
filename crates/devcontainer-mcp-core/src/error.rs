@@ -27,10 +27,6 @@ pub enum Error {
     #[error("kubectl not found. Install from: https://kubernetes.io/docs/tasks/tools/")]
     KubectlNotFound,
 
-    #[cfg(target_os = "windows")]
-    #[error("WSL (wsl.exe) not found. WSL must be installed: https://learn.microsoft.com/en-us/windows/wsl/install")]
-    WslNotFound,
-
     #[error("DevPod command failed (exit code {exit_code}): {stderr}")]
     DevPodCommand { exit_code: i32, stderr: String },
 
