@@ -3,8 +3,6 @@ mod codespaces;
 pub mod common;
 mod devcontainer;
 mod devpod;
-#[cfg(target_os = "windows")]
-mod wsl;
 
 use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::model::{ServerCapabilities, ServerInfo};
@@ -19,13 +17,10 @@ impl DevContainerMcp {
     }
 
     fn combined_router() -> ToolRouter<Self> {
-        let r = Self::devpod_router()
+        Self::devpod_router()
             + Self::devcontainer_router()
             + Self::codespaces_router()
-            + Self::auth_router();
-        #[cfg(target_os = "windows")]
-        let r = r + Self::wsl_router();
-        r
+            + Self::auth_router()
     }
 }
 
