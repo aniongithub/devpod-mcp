@@ -7,27 +7,19 @@ const FRONTMATTER_DESC: &str =
     "Manage dev container environments via MCP tools (DevPod, devcontainer CLI, Codespaces)";
 
 /// Resolve the set of active tags for the current build target.
+///
+/// SKILL.md is read from the repo by all platforms, so we activate all tags
+/// to ensure every tool is documented. The actual tool registration is
+/// controlled by #[cfg(target_os)] in Rust source — build.rs only assembles
+/// the documentation.
 fn active_tags() -> HashSet<String> {
     let mut tags = HashSet::new();
     tags.insert("core".to_string());
-
-    let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
-    match target_os.as_str() {
-        "windows" => {
-            tags.insert("windows".to_string());
-            tags.insert("docker-desktop".to_string());
-            tags.insert("wsl".to_string());
-        }
-        "macos" => {
-            tags.insert("macos".to_string());
-            tags.insert("docker-desktop".to_string());
-        }
-        "linux" => {
-            tags.insert("linux".to_string());
-        }
-        _ => {}
-    }
-
+    tags.insert("linux".to_string());
+    tags.insert("macos".to_string());
+    tags.insert("windows".to_string());
+    tags.insert("docker-desktop".to_string());
+    tags.insert("wsl".to_string());
     tags
 }
 
@@ -174,5 +166,4 @@ fn main() {
 
     // --- Incremental build support ----------------------------------------------
     println!("cargo:rerun-if-changed={}", skills_dir.display());
-    println!("cargo:rerun-if-env-changed=CARGO_CFG_TARGET_OS");
 }
