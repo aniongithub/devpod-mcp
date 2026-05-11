@@ -116,6 +116,116 @@ for dir in "${SKILL_DIRS[@]}"; do
     echo "    ${dir}/SKILL.md" || true
 done
 
+# ---------------------------------------------------------------------------
+# Install host-protection hooks
+# ---------------------------------------------------------------------------
+
+HOOK_URL="https://raw.githubusercontent.com/${REPO}/main/hooks/devcontainer-guard.sh"
+HOOK_DIR="${HOME}/.local/share/devcontainer-mcp/hooks"
+HOOK_PATH="${HOOK_DIR}/devcontainer-guard.sh"
+
+echo ""
+echo "==> Installing host-protection hook..."
+mkdir -p "$HOOK_DIR"
+curl -fsSL -o "$HOOK_PATH" "$HOOK_URL" 2>/dev/null && \
+  chmod +x "$HOOK_PATH" && \
+  echo "    ${HOOK_PATH}" || echo "    ⚠ Could not download hook script"
+
+# Configure Claude Code PreToolUse hook
+configure_claude_hook() {
+  local settings_file="${HOME}/.claude/settings.json"
+  local hook_command="$HOOK_PATH"
+
+  if [ ! -f "$settings_file" ]; then
+    mkdir -p "$(dirname "$settings_file")"
+    cat > "$settings_file" << CLAUDEEOF
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${hook_command}",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
+CLAUDEEOF
+    echo "  ✓ Claude Code — created ${settings_file}"
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -c "
+import json, sys
+
+path = '${settings_file}'
+hook_cmd = '${hook_command}'
+
+with open(path) as f:
+    data = json.load(f)
+
+hooks = data.setdefault('hooks', {})
+pre_tool = hooks.setdefault('PreToolUse', [])
+
+# Check if devcontainer-guard is already configured
+already = False
+for group in pre_tool:
+    for h in group.get('hooks', []):
+        if 'devcontainer-guard' in h.get('command', ''):
+            already = True
+            break
+
+if not already:
+    pre_tool.append({
+        'matcher': 'Bash',
+        'hooks': [{
+            'type': 'command',
+            'command': hook_cmd,
+            'timeout': 5
+        }]
+    })
+    with open(path, 'w') as f:
+        json.dump(data, f, indent=2)
+    print('  ✓ Claude Code — added hook to ${settings_file}')
+else:
+    print('  ✓ Claude Code — hook already configured')
+" 2>/dev/null || echo "  ⚠ Claude Code — could not update ${settings_file}"
+  else
+    echo "  ⚠ Claude Code — exists but python3 not available to merge"
+  fi
+}
+
+# Configure Copilot CLI preToolUse hook
+configure_copilot_hook() {
+  local hooks_dir="${HOME}/.copilot/hooks"
+  local hooks_file="${hooks_dir}/devcontainer-guard.json"
+
+  mkdir -p "$hooks_dir"
+  cat > "$hooks_file" << COPILOTEOF
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "type": "command",
+        "bash": "${HOOK_PATH}",
+        "timeoutSec": 5
+      }
+    ]
+  }
+}
+COPILOTEOF
+  echo "  ✓ Copilot CLI — created ${hooks_file}"
+}
+
+echo ""
+echo "==> Configuring agent host-protection hooks..."
+configure_claude_hook
+configure_copilot_hook
+
 # Detect available backends
 echo ""
 echo "Backend CLIs detected (install as needed — MCP server gives helpful errors if missing):"

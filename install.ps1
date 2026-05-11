@@ -124,6 +124,98 @@ foreach ($dir in $skillDirs) {
 }
 
 # ---------------------------------------------------------------------------
+# 3b. Install host-protection hooks
+# ---------------------------------------------------------------------------
+
+Write-Step "Installing host-protection hook..."
+
+$hookUrl = "https://raw.githubusercontent.com/$Repo/main/hooks/devcontainer-guard.sh"
+$WslHookDir = "~/.local/share/devcontainer-mcp/hooks"
+$WslHookPath = "$WslHookDir/devcontainer-guard.sh"
+
+$hookResult = wsl -d $WslDistro bash -c "mkdir -p '$WslHookDir' && curl -fsSL -o '$WslHookPath' '$hookUrl' && chmod +x '$WslHookPath' && echo OK" 2>&1
+if ($hookResult -match "OK") {
+    Write-Ok "Hook script installed in WSL at $WslHookPath"
+} else {
+    Write-Warn "Could not install hook script in WSL"
+}
+
+# Configure Claude Code PreToolUse hook (Windows-side)
+Write-Step "Configuring agent host-protection hooks..."
+
+$claudeSettings = "$env:USERPROFILE\.claude\settings.json"
+try {
+    $hookEntry = @{
+        matcher = "Bash"
+        hooks = @(
+            @{
+                type = "command"
+                command = "wsl $WslHookPath"
+                timeout = 5
+            }
+        )
+    }
+
+    if (Test-Path $claudeSettings) {
+        $content = Get-Content -Raw $claudeSettings | ConvertFrom-Json
+        if (-not $content.hooks) {
+            $content | Add-Member -NotePropertyName "hooks" -NotePropertyValue ([PSCustomObject]@{})
+        }
+        if (-not $content.hooks.PreToolUse) {
+            $content.hooks | Add-Member -NotePropertyName "PreToolUse" -NotePropertyValue @()
+        }
+        # Check if already configured
+        $already = $false
+        foreach ($group in $content.hooks.PreToolUse) {
+            foreach ($h in $group.hooks) {
+                if ($h.command -match "devcontainer-guard") { $already = $true; break }
+            }
+        }
+        if (-not $already) {
+            $content.hooks.PreToolUse += [PSCustomObject]$hookEntry
+            $content | ConvertTo-Json -Depth 10 | Set-Content $claudeSettings -Encoding UTF8
+            Write-Ok "Claude Code — added hook to $claudeSettings"
+        } else {
+            Write-Ok "Claude Code — hook already configured"
+        }
+    } else {
+        $dir = Split-Path $claudeSettings -Parent
+        if ($dir) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+        $config = [PSCustomObject]@{
+            hooks = [PSCustomObject]@{
+                PreToolUse = @([PSCustomObject]$hookEntry)
+            }
+        }
+        $config | ConvertTo-Json -Depth 10 | Set-Content $claudeSettings -Encoding UTF8
+        Write-Ok "Claude Code — created $claudeSettings"
+    }
+} catch {
+    Write-Warn "Claude Code — could not configure hooks"
+}
+
+# Configure Copilot CLI preToolUse hook (Windows-side)
+$copilotHooksDir = "$env:USERPROFILE\.copilot\hooks"
+try {
+    New-Item -ItemType Directory -Path $copilotHooksDir -Force | Out-Null
+    $copilotHook = [PSCustomObject]@{
+        version = 1
+        hooks = [PSCustomObject]@{
+            preToolUse = @(
+                [PSCustomObject]@{
+                    type = "command"
+                    bash = "wsl $WslHookPath"
+                    timeoutSec = 5
+                }
+            )
+        }
+    }
+    $copilotHook | ConvertTo-Json -Depth 10 | Set-Content "$copilotHooksDir\devcontainer-guard.json" -Encoding UTF8
+    Write-Ok "Copilot CLI — created $copilotHooksDir\devcontainer-guard.json"
+} catch {
+    Write-Warn "Copilot CLI — could not configure hooks"
+}
+
+# ---------------------------------------------------------------------------
 # 4. Detect backend CLIs available in WSL
 # ---------------------------------------------------------------------------
 

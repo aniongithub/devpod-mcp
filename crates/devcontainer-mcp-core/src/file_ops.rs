@@ -75,10 +75,7 @@ pub fn write_file_command(path: &str, content: &str) -> String {
 
 /// Build a shell command that lists a directory (non-hidden, up to 2 levels).
 pub fn list_dir_command(path: &str) -> String {
-    format!(
-        "find {} -maxdepth 2 -not -path '*/.*' | sort",
-        quote(path)
-    )
+    format!("find {} -maxdepth 2 -not -path '*/.*' | sort", quote(path))
 }
 
 #[cfg(test)]
