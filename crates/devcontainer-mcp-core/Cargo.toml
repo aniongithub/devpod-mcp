@@ -16,4 +16,4 @@ tracing = { workspace = true }
 futures-util = "0.3"
 async-trait = "0.1"
 base64 = "0.22"
-shell-escape = "0.1"
+shlex = "1"

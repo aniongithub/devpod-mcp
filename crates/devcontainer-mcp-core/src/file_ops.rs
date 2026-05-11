@@ -4,10 +4,7 @@
 //! formatting, and helpers to build shell commands for reading/writing files
 //! through any backend (DevPod SSH, devcontainer exec, Codespaces SSH).
 
-use std::borrow::Cow;
-
 use base64::{engine::general_purpose::STANDARD, Engine};
-use shell_escape::escape;
 
 use crate::error::{Error, Result};
 
@@ -57,7 +54,9 @@ pub fn apply_edit(content: &str, old_str: &str, new_str: &str) -> Result<String>
 
 /// Shell-escape a string for safe embedding in a shell command.
 fn quote(s: &str) -> String {
-    escape(Cow::Borrowed(s)).into_owned()
+    shlex::try_quote(s)
+        .unwrap_or(std::borrow::Cow::Borrowed(s))
+        .into_owned()
 }
 
 /// Build a shell command that reads a file via `cat`.
@@ -133,8 +132,11 @@ mod tests {
     #[test]
     fn test_quote_path_with_single_quote() {
         let result = quote("it's");
-        // Should not break when used in a shell command
-        assert!(!result.contains("it's") || result.contains("\\'"));
+        // Result should be shell-safe: either escaped or wrapped in quotes
+        assert!(
+            result != "it's",
+            "single quote must be escaped or quoted, got: {result}"
+        );
     }
 
     #[test]

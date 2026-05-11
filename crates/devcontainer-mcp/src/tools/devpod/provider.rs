@@ -37,12 +37,13 @@ impl DevContainerMcp {
         &self,
         Parameters(params): Parameters<DevpodProviderAddParams>,
     ) -> String {
-        let opt_parts: Vec<&str> = params
+        let opt_parts: Vec<String> = params
             .options
             .as_deref()
-            .map(|o| o.split_whitespace().collect())
+            .and_then(shlex::split)
             .unwrap_or_default();
-        match devpod::provider_add(&params.provider, &opt_parts).await {
+        let opt_refs: Vec<&str> = opt_parts.iter().map(|s| s.as_str()).collect();
+        match devpod::provider_add(&params.provider, &opt_refs).await {
             Ok(output) => format_output(&output),
             Err(e) => format!("Error: {e}"),
         }

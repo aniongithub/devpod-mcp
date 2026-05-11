@@ -19,8 +19,10 @@ impl DevContainerMcp {
         description = "Build a DevPod workspace image without starting it."
     )]
     async fn devpod_build(&self, Parameters(params): Parameters<DevpodBuildParams>) -> String {
-        let parts: Vec<&str> = params.args.split_whitespace().collect();
-        match devpod::build(&parts).await {
+        let parts: Vec<String> = shlex::split(&params.args)
+            .unwrap_or_else(|| params.args.split_whitespace().map(String::from).collect());
+        let part_refs: Vec<&str> = parts.iter().map(|s| s.as_str()).collect();
+        match devpod::build(&part_refs).await {
             Ok(output) => format_output(&output),
             Err(e) => format!("Error: {e}"),
         }

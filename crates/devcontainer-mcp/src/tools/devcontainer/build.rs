@@ -25,12 +25,13 @@ impl DevContainerMcp {
         &self,
         Parameters(params): Parameters<DevcontainerBuildParams>,
     ) -> String {
-        let extra: Vec<&str> = params
+        let extra: Vec<String> = params
             .extra_args
             .as_deref()
-            .map(|a| a.split_whitespace().collect())
+            .and_then(shlex::split)
             .unwrap_or_default();
-        match devcontainer::build(&params.workspace_folder, &extra).await {
+        let extra_refs: Vec<&str> = extra.iter().map(|s| s.as_str()).collect();
+        match devcontainer::build(&params.workspace_folder, &extra_refs).await {
             Ok(output) => format_output(&output),
             Err(e) => format!("Error: {e}"),
         }

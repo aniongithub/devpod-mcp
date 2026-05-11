@@ -19,8 +19,10 @@ impl DevContainerMcp {
         description = "Create and start a DevPod workspace. Pass the source (git URL, local path, or image) and any flags as space-separated args. Returns full build output for self-healing."
     )]
     async fn devpod_up(&self, Parameters(params): Parameters<DevpodUpParams>) -> String {
-        let parts: Vec<&str> = params.args.split_whitespace().collect();
-        match devpod::up(&parts).await {
+        let parts: Vec<String> = shlex::split(&params.args)
+            .unwrap_or_else(|| params.args.split_whitespace().map(String::from).collect());
+        let part_refs: Vec<&str> = parts.iter().map(|s| s.as_str()).collect();
+        match devpod::up(&part_refs).await {
             Ok(output) => format_output(&output),
             Err(e) => format!("Error: {e}"),
         }
