@@ -25,12 +25,11 @@ impl DevContainerMcp {
         &self,
         Parameters(params): Parameters<DevcontainerExecParams>,
     ) -> String {
-        let cmd_args: Vec<&str> = params
-            .args
-            .as_deref()
-            .map(|a| a.split_whitespace().collect())
-            .unwrap_or_default();
-        match devcontainer::exec(&params.workspace_folder, &params.command, &cmd_args).await {
+        let full_cmd = match &params.args {
+            Some(a) => format!("{} {}", params.command, a),
+            None => params.command,
+        };
+        match devcontainer::exec(&params.workspace_folder, "sh", &["-c", &full_cmd]).await {
             Ok(output) => format_output(&output),
             Err(e) => format!("Error: {e}"),
         }

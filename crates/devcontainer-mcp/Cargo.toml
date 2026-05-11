@@ -17,3 +17,4 @@ rmcp = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 schemars = "1"
+shlex = "1"
