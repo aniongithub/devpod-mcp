@@ -121,8 +121,10 @@ done
 # ---------------------------------------------------------------------------
 
 HOOK_URL="https://raw.githubusercontent.com/${REPO}/main/.github/hooks/devcontainer-guard.sh"
+LOADER_URL="https://raw.githubusercontent.com/${REPO}/main/.github/hooks/devcontainer-skill-loader.sh"
 HOOK_DIR="${HOME}/.local/share/devcontainer-mcp/hooks"
 HOOK_PATH="${HOOK_DIR}/devcontainer-guard.sh"
+LOADER_PATH="${HOOK_DIR}/devcontainer-skill-loader.sh"
 
 echo ""
 echo "==> Installing host-protection hook..."
@@ -131,10 +133,22 @@ curl -fsSL -o "$HOOK_PATH" "$HOOK_URL" 2>/dev/null && \
   chmod +x "$HOOK_PATH" && \
   echo "    ${HOOK_PATH}" || echo "    ⚠ Could not download hook script"
 
-# Configure Claude Code PreToolUse hook
+echo ""
+echo "==> Installing skill-loader hook..."
+curl -fsSL -o "$LOADER_PATH" "$LOADER_URL" 2>/dev/null && \
+  chmod +x "$LOADER_PATH" && \
+  echo "    ${LOADER_PATH}" || echo "    ⚠ Could not download skill-loader hook"
+
+# Install SKILL.md alongside hooks for the loader to find
+SKILL_DATA_PATH="${HOME}/.local/share/devcontainer-mcp/SKILL.md"
+curl -fsSL -o "$SKILL_DATA_PATH" "$SKILL_URL" 2>/dev/null && \
+  echo "    ${SKILL_DATA_PATH}" || true
+
+# Configure Claude Code PreToolUse + SessionStart hooks
 configure_claude_hook() {
   local settings_file="${HOME}/.claude/settings.json"
   local hook_command="$HOOK_PATH"
+  local loader_command="$LOADER_PATH"
 
   if [ ! -f "$settings_file" ]; then
     mkdir -p "$(dirname "$settings_file")"
@@ -152,6 +166,17 @@ configure_claude_hook() {
           }
         ]
       }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${loader_command}",
+            "timeout": 5
+          }
+        ]
+      }
     ]
   }
 }
@@ -163,22 +188,23 @@ import json, sys
 
 path = '${settings_file}'
 hook_cmd = '${hook_command}'
+loader_cmd = '${loader_command}'
 
 with open(path) as f:
     data = json.load(f)
 
 hooks = data.setdefault('hooks', {})
-pre_tool = hooks.setdefault('PreToolUse', [])
 
-# Check if devcontainer-guard is already configured
-already = False
+# --- PreToolUse: devcontainer-guard ---
+pre_tool = hooks.setdefault('PreToolUse', [])
+already_guard = False
 for group in pre_tool:
     for h in group.get('hooks', []):
         if 'devcontainer-guard' in h.get('command', ''):
-            already = True
+            already_guard = True
             break
 
-if not already:
+if not already_guard:
     pre_tool.append({
         'matcher': 'Bash',
         'hooks': [{
@@ -187,24 +213,46 @@ if not already:
             'timeout': 5
         }]
     })
-    with open(path, 'w') as f:
-        json.dump(data, f, indent=2)
-    print('  ✓ Claude Code — added hook to ${settings_file}')
+    print('  ✓ Claude Code — added PreToolUse hook to ${settings_file}')
 else:
-    print('  ✓ Claude Code — hook already configured')
+    print('  ✓ Claude Code — PreToolUse hook already configured')
+
+# --- SessionStart: skill-loader ---
+session_start = hooks.setdefault('SessionStart', [])
+already_loader = False
+for group in session_start:
+    for h in group.get('hooks', []):
+        if 'skill-loader' in h.get('command', ''):
+            already_loader = True
+            break
+
+if not already_loader:
+    session_start.append({
+        'hooks': [{
+            'type': 'command',
+            'command': loader_cmd,
+            'timeout': 5
+        }]
+    })
+    print('  ✓ Claude Code — added SessionStart hook to ${settings_file}')
+else:
+    print('  ✓ Claude Code — SessionStart hook already configured')
+
+with open(path, 'w') as f:
+    json.dump(data, f, indent=2)
 " 2>/dev/null || echo "  ⚠ Claude Code — could not update ${settings_file}"
   else
     echo "  ⚠ Claude Code — exists but python3 not available to merge"
   fi
 }
 
-# Configure Copilot CLI preToolUse hook
+# Configure Copilot CLI preToolUse + sessionStart hooks
 configure_copilot_hook() {
   local hooks_dir="${HOME}/.copilot/hooks"
-  local hooks_file="${hooks_dir}/devcontainer-guard.json"
 
   mkdir -p "$hooks_dir"
-  cat > "$hooks_file" << COPILOTEOF
+
+  cat > "${hooks_dir}/devcontainer-guard.json" << COPILOTEOF
 {
   "version": 1,
   "hooks": {
@@ -218,7 +266,23 @@ configure_copilot_hook() {
   }
 }
 COPILOTEOF
-  echo "  ✓ Copilot CLI — created ${hooks_file}"
+  echo "  ✓ Copilot CLI — created ${hooks_dir}/devcontainer-guard.json"
+
+  cat > "${hooks_dir}/devcontainer-skill-loader.json" << COPILOTEOF
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "type": "command",
+        "bash": "${LOADER_PATH}",
+        "timeoutSec": 5
+      }
+    ]
+  }
+}
+COPILOTEOF
+  echo "  ✓ Copilot CLI — created ${hooks_dir}/devcontainer-skill-loader.json"
 }
 
 echo ""

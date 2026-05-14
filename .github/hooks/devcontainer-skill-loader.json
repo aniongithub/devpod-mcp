@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "type": "command",
+        "bash": "./.github/hooks/devcontainer-skill-loader.sh",
+        "timeoutSec": 5
+      }
+    ]
+  }
+}

@@ -130,27 +130,49 @@ foreach ($dir in $skillDirs) {
 Write-Step "Installing host-protection hook..."
 
 $hookUrl = "https://raw.githubusercontent.com/$Repo/main/.github/hooks/devcontainer-guard.sh"
+$loaderUrl = "https://raw.githubusercontent.com/$Repo/main/.github/hooks/devcontainer-skill-loader.sh"
 $WslHookDir = "~/.local/share/devcontainer-mcp/hooks"
 $WslHookPath = "$WslHookDir/devcontainer-guard.sh"
+$WslLoaderPath = "$WslHookDir/devcontainer-skill-loader.sh"
 
 $hookResult = wsl -d $WslDistro bash -c "mkdir -p '$WslHookDir' && curl -fsSL -o '$WslHookPath' '$hookUrl' && chmod +x '$WslHookPath' && echo OK" 2>&1
 if ($hookResult -match "OK") {
-    Write-Ok "Hook script installed in WSL at $WslHookPath"
+    Write-Ok "Guard hook installed in WSL at $WslHookPath"
 } else {
-    Write-Warn "Could not install hook script in WSL"
+    Write-Warn "Could not install guard hook in WSL"
 }
 
-# Configure Claude Code PreToolUse hook (Windows-side)
-Write-Step "Configuring agent host-protection hooks..."
+$loaderResult = wsl -d $WslDistro bash -c "curl -fsSL -o '$WslLoaderPath' '$loaderUrl' && chmod +x '$WslLoaderPath' && echo OK" 2>&1
+if ($loaderResult -match "OK") {
+    Write-Ok "Skill-loader hook installed in WSL at $WslLoaderPath"
+} else {
+    Write-Warn "Could not install skill-loader hook in WSL"
+}
+
+# Install SKILL.md alongside hooks for the loader to find
+$WslSkillDataPath = "~/.local/share/devcontainer-mcp/SKILL.md"
+wsl -d $WslDistro bash -c "curl -fsSL -o '$WslSkillDataPath' '$skillUrl'" 2>&1 | Out-Null
+
+# Configure Claude Code PreToolUse + SessionStart hooks (Windows-side)
+Write-Step "Configuring agent hooks..."
 
 $claudeSettings = "$env:USERPROFILE\.claude\settings.json"
 try {
-    $hookEntry = @{
+    $guardEntry = @{
         matcher = "Bash"
         hooks = @(
             @{
                 type = "command"
                 command = "wsl $WslHookPath"
+                timeout = 5
+            }
+        )
+    }
+    $loaderEntry = @{
+        hooks = @(
+            @{
+                type = "command"
+                command = "wsl $WslLoaderPath"
                 timeout = 5
             }
         )
@@ -161,29 +183,49 @@ try {
         if (-not $content.hooks) {
             $content | Add-Member -NotePropertyName "hooks" -NotePropertyValue ([PSCustomObject]@{})
         }
+
+        # PreToolUse: devcontainer-guard
         if (-not $content.hooks.PreToolUse) {
             $content.hooks | Add-Member -NotePropertyName "PreToolUse" -NotePropertyValue @()
         }
-        # Check if already configured
-        $already = $false
+        $alreadyGuard = $false
         foreach ($group in $content.hooks.PreToolUse) {
             foreach ($h in $group.hooks) {
-                if ($h.command -match "devcontainer-guard") { $already = $true; break }
+                if ($h.command -match "devcontainer-guard") { $alreadyGuard = $true; break }
             }
         }
-        if (-not $already) {
-            $content.hooks.PreToolUse += [PSCustomObject]$hookEntry
-            $content | ConvertTo-Json -Depth 10 | Set-Content $claudeSettings -Encoding UTF8
-            Write-Ok "Claude Code — added hook to $claudeSettings"
+        if (-not $alreadyGuard) {
+            $content.hooks.PreToolUse += [PSCustomObject]$guardEntry
+            Write-Ok "Claude Code — added PreToolUse hook"
         } else {
-            Write-Ok "Claude Code — hook already configured"
+            Write-Ok "Claude Code — PreToolUse hook already configured"
         }
+
+        # SessionStart: skill-loader
+        if (-not $content.hooks.SessionStart) {
+            $content.hooks | Add-Member -NotePropertyName "SessionStart" -NotePropertyValue @()
+        }
+        $alreadyLoader = $false
+        foreach ($group in $content.hooks.SessionStart) {
+            foreach ($h in $group.hooks) {
+                if ($h.command -match "skill-loader") { $alreadyLoader = $true; break }
+            }
+        }
+        if (-not $alreadyLoader) {
+            $content.hooks.SessionStart += [PSCustomObject]$loaderEntry
+            Write-Ok "Claude Code — added SessionStart hook"
+        } else {
+            Write-Ok "Claude Code — SessionStart hook already configured"
+        }
+
+        $content | ConvertTo-Json -Depth 10 | Set-Content $claudeSettings -Encoding UTF8
     } else {
         $dir = Split-Path $claudeSettings -Parent
         if ($dir) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
         $config = [PSCustomObject]@{
             hooks = [PSCustomObject]@{
-                PreToolUse = @([PSCustomObject]$hookEntry)
+                PreToolUse = @([PSCustomObject]$guardEntry)
+                SessionStart = @([PSCustomObject]$loaderEntry)
             }
         }
         $config | ConvertTo-Json -Depth 10 | Set-Content $claudeSettings -Encoding UTF8
@@ -193,11 +235,12 @@ try {
     Write-Warn "Claude Code — could not configure hooks"
 }
 
-# Configure Copilot CLI preToolUse hook (Windows-side)
+# Configure Copilot CLI preToolUse + sessionStart hooks (Windows-side)
 $copilotHooksDir = "$env:USERPROFILE\.copilot\hooks"
 try {
     New-Item -ItemType Directory -Path $copilotHooksDir -Force | Out-Null
-    $copilotHook = [PSCustomObject]@{
+
+    $copilotGuard = [PSCustomObject]@{
         version = 1
         hooks = [PSCustomObject]@{
             preToolUse = @(
@@ -209,8 +252,23 @@ try {
             )
         }
     }
-    $copilotHook | ConvertTo-Json -Depth 10 | Set-Content "$copilotHooksDir\devcontainer-guard.json" -Encoding UTF8
+    $copilotGuard | ConvertTo-Json -Depth 10 | Set-Content "$copilotHooksDir\devcontainer-guard.json" -Encoding UTF8
     Write-Ok "Copilot CLI — created $copilotHooksDir\devcontainer-guard.json"
+
+    $copilotLoader = [PSCustomObject]@{
+        version = 1
+        hooks = [PSCustomObject]@{
+            sessionStart = @(
+                [PSCustomObject]@{
+                    type = "command"
+                    bash = "wsl $WslLoaderPath"
+                    timeoutSec = 5
+                }
+            )
+        }
+    }
+    $copilotLoader | ConvertTo-Json -Depth 10 | Set-Content "$copilotHooksDir\devcontainer-skill-loader.json" -Encoding UTF8
+    Write-Ok "Copilot CLI — created $copilotHooksDir\devcontainer-skill-loader.json"
 } catch {
     Write-Warn "Copilot CLI — could not configure hooks"
 }
