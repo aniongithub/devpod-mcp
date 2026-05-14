@@ -8,6 +8,9 @@
 # Read-only tools (view, grep, glob) and file edits are allowed through — only
 # command execution is blocked.
 #
+# Host-safe commands (git, gh, curl, etc.) are allowlisted and always permitted
+# since they operate on the repo/host, not the project's build environment.
+#
 # Bypass: include USER_CONFIRMED_HOST_OPERATION=1 in the command.
 #
 # Supports both agent payload formats:
@@ -48,7 +51,61 @@ if [ ! -f "${CWD}/.devcontainer/devcontainer.json" ]; then
   exit 0
 fi
 
-# --- Devcontainer exists: block the tool call ---
+# --- Devcontainer exists: check allowlist before blocking ---
+
+# Extract the command string from tool input (handles both formats)
+COMMAND=$(echo "$INPUT" | jq -r '(.tool_input.command // .toolArgs.command // "") | tostring')
+
+# Commands that are safe to run on the host even when a devcontainer exists.
+# These operate on the repo/host itself, not on the project's build environment.
+ALLOWED_HOST_COMMANDS=(
+  git
+  gh
+)
+
+# Extract all meaningful commands from a shell string, skipping env vars
+# (KEY=VALUE) and cd/pushd/popd. Splits on &&, ||, ;, and | to catch every
+# command in a chain or pipeline.
+all_commands() {
+  local cmd="$1"
+  while IFS= read -r segment; do
+    segment="${segment#"${segment%%[![:space:]]*}"}"
+    [ -z "$segment" ] && continue
+    for token in $segment; do
+      if [[ "$token" == *=* && "$token" != -* ]]; then
+        continue
+      fi
+      case "$token" in
+        cd|pushd|popd) break ;;
+      esac
+      basename "$token"
+      break
+    done
+  done < <(echo "$cmd" | sed 's/ *&& */\n/g; s/ *|| */\n/g; s/ *; */\n/g; s/ *| */\n/g')
+}
+
+# Every command in the chain must be on the allowlist
+ALL_ALLOWED=true
+while IFS= read -r cmd_name; do
+  [ -z "$cmd_name" ] && continue
+  FOUND=false
+  for allowed in "${ALLOWED_HOST_COMMANDS[@]}"; do
+    if [ "$cmd_name" = "$allowed" ]; then
+      FOUND=true
+      break
+    fi
+  done
+  if [ "$FOUND" = false ]; then
+    ALL_ALLOWED=false
+    break
+  fi
+done < <(all_commands "$COMMAND")
+
+if [ "$ALL_ALLOWED" = true ] && [ -n "$(all_commands "$COMMAND")" ]; then
+  exit 0
+fi
+
+# --- Not on the allowlist: block the tool call ---
 
 DENY_REASON="Host execution blocked. This project has a devcontainer. Use devcontainer-mcp tools (devcontainer_exec, devpod_ssh, codespaces_ssh, and file operation tools) instead of running commands directly on the host."
 

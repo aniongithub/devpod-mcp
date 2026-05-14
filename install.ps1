@@ -129,7 +129,7 @@ foreach ($dir in $skillDirs) {
 
 Write-Step "Installing host-protection hook..."
 
-$hookUrl = "https://raw.githubusercontent.com/$Repo/main/hooks/devcontainer-guard.sh"
+$hookUrl = "https://raw.githubusercontent.com/$Repo/main/.github/hooks/devcontainer-guard.sh"
 $WslHookDir = "~/.local/share/devcontainer-mcp/hooks"
 $WslHookPath = "$WslHookDir/devcontainer-guard.sh"
 

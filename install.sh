@@ -120,7 +120,7 @@ done
 # Install host-protection hooks
 # ---------------------------------------------------------------------------
 
-HOOK_URL="https://raw.githubusercontent.com/${REPO}/main/hooks/devcontainer-guard.sh"
+HOOK_URL="https://raw.githubusercontent.com/${REPO}/main/.github/hooks/devcontainer-guard.sh"
 HOOK_DIR="${HOME}/.local/share/devcontainer-mcp/hooks"
 HOOK_PATH="${HOOK_DIR}/devcontainer-guard.sh"
 
