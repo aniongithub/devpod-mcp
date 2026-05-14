@@ -15,7 +15,7 @@ fn repo_root() -> std::path::PathBuf {
 }
 
 fn hook_path() -> std::path::PathBuf {
-    repo_root().join("hooks/devcontainer-guard.sh")
+    repo_root().join(".github/hooks/devcontainer-guard.sh")
 }
 
 /// Run the hook script with the given JSON input and return (stdout, exit_code).

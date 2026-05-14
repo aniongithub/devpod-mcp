@@ -1,10 +1,10 @@
 {
   "version": 1,
   "hooks": {
-    "preToolUse": [
+    "sessionStart": [
       {
         "type": "command",
-        "bash": "./.github/hooks/devcontainer-guard.sh",
+        "bash": "./.github/hooks/devcontainer-skill-loader.sh",
         "timeoutSec": 5
       }
     ]
