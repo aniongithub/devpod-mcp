@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
 
-use crate::cli::{run_cli, CliBinary, CliOutput};
+use crate::cli::{run_cli, run_with_shim, ChunkSink, CliBinary, CliOutput, RemoteKiller};
 use crate::error::{Error, Result};
 
 /// Run a devpod CLI command with the given args.
@@ -106,6 +108,88 @@ pub async fn ssh_exec(
         args.push(w);
     }
     run_devpod(&args, false).await
+}
+
+/// `devpod ssh --command` — cancellable, streaming variant.
+///
+/// Same shim treatment as [`crate::devcontainer::exec_streaming`]: the
+/// user's command is wrapped with [`crate::exec_shim::wrap_self_contained`]
+/// so it survives the SSH transport without quoting hazards, the
+/// captured remote PGID is stripped from stderr, and on cancel a
+/// second `devpod ssh --command` delivers `kill -TERM -<pgid>` then
+/// `kill -KILL -<pgid>` to the same workspace.
+///
+/// DevPod (unlike the devcontainer CLI) has no `--remote-env` flag,
+/// hence the self-contained shim variant which embeds the user
+/// command as a base64 blob inside the shell snippet.
+pub async fn ssh_exec_streaming(
+    workspace: &str,
+    command: &str,
+    user: Option<&str>,
+    workdir: Option<&str>,
+    cancel: &CancellationToken,
+    on_chunk: Option<Arc<dyn ChunkSink>>,
+) -> Result<CliOutput> {
+    let wrapped = crate::exec_shim::wrap_self_contained(command);
+    let mut args = vec!["ssh", workspace, "--command", &wrapped];
+    if let Some(u) = user {
+        args.push("--user");
+        args.push(u);
+    }
+    if let Some(w) = workdir {
+        args.push("--workdir");
+        args.push(w);
+    }
+
+    let killer: Arc<dyn RemoteKiller> = Arc::new(DevpodKiller {
+        workspace: workspace.to_string(),
+        user: user.map(str::to_string),
+    });
+
+    run_with_shim(
+        &CliBinary::DevPod,
+        &args,
+        None,
+        cancel,
+        on_chunk,
+        killer,
+    )
+    .await
+}
+
+/// Delivers `kill -<sig> -<pgid>` inside a DevPod workspace by
+/// spawning a fresh short-lived `devpod ssh --command "kill ..."`.
+///
+/// We can't reuse the original SSH session (it's busy running the
+/// workload that we're trying to interrupt), so each kill is its own
+/// `devpod ssh` round trip. This is slower than the docker exec path
+/// — SSH auth handshake plus DevPod's own session setup — but cancel
+/// is a rare path and we'd rather pay 1–2 seconds of latency than
+/// leak the workload.
+struct DevpodKiller {
+    workspace: String,
+    user: Option<String>,
+}
+
+#[async_trait::async_trait]
+impl RemoteKiller for DevpodKiller {
+    async fn kill_pgid(&self, pgid: i32, signal: &str) {
+        // `kill -<sig> -<pgid>` with the same BusyBox-friendly form
+        // we use for the devcontainer backend (no `--`).
+        let cmd = format!("kill -{signal} -{pgid} 2>/dev/null || true");
+        let mut args = vec!["ssh", &self.workspace, "--command", &cmd];
+        if let Some(u) = self.user.as_deref() {
+            args.push("--user");
+            args.push(u);
+        }
+        // Use the plain (non-streaming, non-cancellable) runner so we
+        // don't recursively pull in the whole shim machinery for a
+        // 50-byte one-shot. We swallow errors: a kill that fails
+        // because the target has already exited is fine.
+        if let Err(e) = run_cli(&CliBinary::DevPod, &args, false).await {
+            tracing::debug!(%e, pgid, signal, "devpod ssh kill failed");
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

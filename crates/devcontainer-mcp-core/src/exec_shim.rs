@@ -70,6 +70,39 @@ fi"#,
 /// before invoking the shim string.
 pub const USER_CMD_ENV: &str = "DCMCP_USER_CMD";
 
+/// Self-contained variant of [`wrap`] that embeds the user command
+/// directly in the returned shell string as a base64 blob.
+///
+/// Use this when the backend transport can carry a shell command but
+/// cannot propagate environment variables — e.g. `devpod ssh
+/// --command <cmd>` and `gh codespace ssh -- <cmd>`, neither of which
+/// has a `--remote-env`-style flag.
+///
+/// The returned string is shell-safe regardless of what's in
+/// `user_cmd`: the user command is encoded once on the host and
+/// decoded once on the target, with no intermediate shell layers
+/// re-interpreting its quoting.
+pub fn wrap_self_contained(user_cmd: &str) -> String {
+    use base64::{engine::general_purpose::STANDARD, Engine};
+
+    let encoded = STANDARD.encode(user_cmd.as_bytes());
+    // The shell decodes the blob into `DCMCP_USER_CMD` and then runs
+    // the standard shim, which already knows how to eval that env
+    // var. This keeps the two shim flavors structurally identical and
+    // means a single sentinel parser handles both.
+    //
+    // We require `base64` on the target. It is present in every
+    // container image we've encountered (coreutils, busybox, alpine)
+    // because the file-write path already depends on it.
+    let shim = wrap();
+    format!(
+        "{env}=$(printf '%s' '{encoded}' | base64 -d) && export {env} && {shim}",
+        env = USER_CMD_ENV,
+        encoded = encoded,
+        shim = shim,
+    )
+}
+
 /// If `line` is the shim's sentinel, return the captured PGID.
 /// Otherwise return `None`. The caller should suppress matching lines
 /// from any downstream output.
@@ -162,5 +195,42 @@ mod tests {
             .find_map(try_parse_sentinel)
             .expect("sentinel emitted");
         assert!(pgid > 0);
+    }
+
+    #[test]
+    fn wrap_self_contained_runs_user_cmd_with_no_env() {
+        // The whole point of the self-contained variant: no env var
+        // setup, command flows through the shell string itself.
+        let wrapped = wrap_self_contained(r#"echo "it's a (self-contained) test""#);
+        let out = std::process::Command::new("sh")
+            .arg("-c")
+            .arg(&wrapped)
+            .output()
+            .expect("spawn");
+        assert!(out.status.success(), "stderr: {}", String::from_utf8_lossy(&out.stderr));
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(stdout.contains("it's a (self-contained) test"), "stdout: {stdout:?}");
+        assert!(
+            stderr.lines().any(|l| try_parse_sentinel(l).is_some()),
+            "no sentinel in stderr: {stderr:?}"
+        );
+    }
+
+    #[test]
+    fn wrap_self_contained_preserves_arbitrary_bytes() {
+        // Pathological user command: single quotes, double quotes,
+        // backticks, dollar signs, backslashes, newlines, parens.
+        let user_cmd = "echo 'a' \"b\" `echo c` $((1+1)) \\\\ \n echo done";
+        let wrapped = wrap_self_contained(user_cmd);
+        let out = std::process::Command::new("sh")
+            .arg("-c")
+            .arg(&wrapped)
+            .output()
+            .expect("spawn");
+        assert!(out.status.success(), "stderr: {}", String::from_utf8_lossy(&out.stderr));
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        assert!(stdout.contains("a b c 2"), "stdout: {stdout:?}");
+        assert!(stdout.contains("done"), "stdout: {stdout:?}");
     }
 }

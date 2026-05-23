@@ -1,6 +1,10 @@
 use std::collections::HashMap;
+use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
 
-use crate::cli::{run_cli_with_env, CliBinary, CliOutput};
+use crate::cli::{
+    run_cli_with_env, run_with_shim, ChunkSink, CliBinary, CliOutput, RemoteKiller,
+};
 use crate::error::Result;
 
 const LIST_FIELDS: &str =
@@ -75,6 +79,64 @@ pub async fn ssh_exec(
 ) -> Result<CliOutput> {
     let args = vec!["ssh", "-c", codespace, "--", command];
     run_gh_cs(&args, false, Some(env)).await
+}
+
+/// `gh codespace ssh` — cancellable, streaming variant.
+///
+/// Same model as the DevPod backend: the user's command is wrapped
+/// with [`crate::exec_shim::wrap_self_contained`] (the codespace
+/// transport has no `--remote-env`), the captured PGID is stripped
+/// from stderr, and on cancel a second `gh codespace ssh` delivers
+/// `kill -TERM -<pgid>` then `kill -KILL -<pgid>` against the same
+/// codespace.
+pub async fn ssh_exec_streaming(
+    env: &HashMap<String, String>,
+    codespace: &str,
+    command: &str,
+    cancel: &CancellationToken,
+    on_chunk: Option<Arc<dyn ChunkSink>>,
+) -> Result<CliOutput> {
+    let wrapped = crate::exec_shim::wrap_self_contained(command);
+    // `gh codespace ssh -c <cs> -- <cmd>` — the `--` separates gh's
+    // own args from the remote command, so the wrapped shim lands as
+    // the single remote argument.
+    let full_args: Vec<&str> = vec!["codespace", "ssh", "-c", codespace, "--", &wrapped];
+
+    let killer: Arc<dyn RemoteKiller> = Arc::new(CodespaceKiller {
+        env: env.clone(),
+        codespace: codespace.to_string(),
+    });
+
+    run_with_shim(
+        &CliBinary::Gh,
+        &full_args,
+        Some(env),
+        cancel,
+        on_chunk,
+        killer,
+    )
+    .await
+}
+
+/// Delivers `kill -<sig> -<pgid>` inside a Codespace by spawning a
+/// fresh short-lived `gh codespace ssh`. Same trade-off as the DevPod
+/// backend — every kill is its own SSH session, slow but reliable.
+struct CodespaceKiller {
+    env: HashMap<String, String>,
+    codespace: String,
+}
+
+#[async_trait::async_trait]
+impl RemoteKiller for CodespaceKiller {
+    async fn kill_pgid(&self, pgid: i32, signal: &str) {
+        let cmd = format!("kill -{signal} -{pgid} 2>/dev/null || true");
+        let args = vec!["codespace", "ssh", "-c", &self.codespace, "--", &cmd];
+        if let Err(e) =
+            run_cli_with_env(&CliBinary::Gh, &args, false, Some(&self.env)).await
+        {
+            tracing::debug!(%e, pgid, signal, "gh codespace ssh kill failed");
+        }
+    }
 }
 
 /// `gh codespace stop` — stop a running codespace.
