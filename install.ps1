@@ -111,6 +111,7 @@ $skillDirs = @(
     "$env:USERPROFILE\.copilot\skills\devcontainer-mcp"
     "$env:USERPROFILE\.claude\skills\devcontainer-mcp"
     "$env:USERPROFILE\.agents\skills\devcontainer-mcp"
+    "$env:USERPROFILE\.config\opencode\skills\devcontainer-mcp"
 )
 
 foreach ($dir in $skillDirs) {
@@ -361,6 +362,48 @@ if (Test-Path $vscodeDir) {
 if (Test-Path "$env:USERPROFILE\.cursor") {
     Set-McpConfig "$env:USERPROFILE\.cursor\mcp.json" "Cursor"
 }
+
+# opencode — uses a distinct schema (mcp key, type: "local", combined
+# command array, enabled: true) and lives at ~/.config/opencode/opencode.json.
+function Set-OpencodeMcpConfig {
+    $ConfigPath = "$env:USERPROFILE\.config\opencode\opencode.json"
+    $opencodeEntry = [PSCustomObject]@{
+        type    = "local"
+        command = @("wsl", $WslBinaryPath, "serve")
+        enabled = $true
+    }
+
+    try {
+        if (Test-Path $ConfigPath) {
+            $content = Get-Content -Raw $ConfigPath | ConvertFrom-Json
+            if (-not $content.mcp) {
+                $content | Add-Member -NotePropertyName "mcp" -NotePropertyValue ([PSCustomObject]@{})
+            }
+            if ($content.mcp.PSObject.Properties.Name -contains "devcontainer-mcp") {
+                Write-Ok "opencode — already configured"
+                return
+            }
+            $content.mcp | Add-Member -NotePropertyName "devcontainer-mcp" -NotePropertyValue $opencodeEntry
+            $content | ConvertTo-Json -Depth 10 | Set-Content $ConfigPath -Encoding UTF8
+            Write-Ok "opencode — added to $ConfigPath"
+        } else {
+            $dir = Split-Path $ConfigPath -Parent
+            if ($dir) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+            $config = [PSCustomObject]@{
+                '$schema' = "https://opencode.ai/config.json"
+                mcp = [PSCustomObject]@{
+                    "devcontainer-mcp" = $opencodeEntry
+                }
+            }
+            $config | ConvertTo-Json -Depth 10 | Set-Content $ConfigPath -Encoding UTF8
+            Write-Ok "opencode — created $ConfigPath"
+        }
+    } catch {
+        Write-Warn "opencode — could not update $ConfigPath"
+    }
+}
+
+Set-OpencodeMcpConfig
 
 # ---------------------------------------------------------------------------
 # Done
