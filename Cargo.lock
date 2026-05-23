@@ -298,6 +298,7 @@ name = "devcontainer-mcp"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "clap",
  "devcontainer-mcp-core",
  "rmcp",
@@ -306,6 +307,7 @@ dependencies = [
  "serde_json",
  "shlex",
  "tokio",
+ "tokio-util",
  "tracing",
  "tracing-subscriber",
 ]
@@ -318,11 +320,13 @@ dependencies = [
  "base64",
  "bollard",
  "futures-util",
+ "libc",
  "serde",
  "serde_json",
  "shlex",
  "thiserror",
  "tokio",
+ "tokio-util",
  "tracing",
 ]
 

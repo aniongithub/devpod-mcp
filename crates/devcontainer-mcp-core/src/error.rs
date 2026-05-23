@@ -36,6 +36,9 @@ pub enum Error {
     #[error("File edit error: {0}")]
     FileEdit(String),
 
+    #[error("Operation cancelled by peer")]
+    Cancelled,
+
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 

@@ -1,6 +1,8 @@
-use crate::cli::{run_cli, CliBinary, CliOutput};
+use crate::cli::{run_cli, ChunkSink, CliBinary, CliOutput};
 use crate::docker;
 use crate::error::Result;
+use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
 
 /// Run a `devcontainer` CLI command.
 async fn run_devcontainer(args: &[&str], parse_json: bool) -> Result<CliOutput> {
@@ -35,6 +37,265 @@ pub async fn exec(
     let mut args = vec!["exec", "--workspace-folder", workspace_folder, command];
     args.extend_from_slice(command_args);
     run_devcontainer(&args, false).await
+}
+
+/// `devcontainer exec` — cancellable, streaming variant.
+///
+/// `cancel` is honored at any point during the child's lifetime; if it
+/// fires, every descendant inside the container is reaped via a docker
+/// exec-side `kill -- -<pgid>` against the process group the shim
+/// established. `on_chunk`, if supplied, receives every line of
+/// stdout/stderr as the child emits it — typically wired to an MCP
+/// progress notification on the server side.
+///
+/// This function differs from the generic [`crate::cli::run_cli_streaming`]
+/// in one important way: container descendants are not in the host PID
+/// namespace lineage of `devcontainer exec` (the docker daemon
+/// reparents them under containerd-shim), so a `/proc` walk on the host
+/// would miss them. We install a tiny `setsid` + sentinel shim around
+/// the user command and use the captured PGID to reap them on cancel.
+pub async fn exec_streaming(
+    workspace_folder: &str,
+    command: &str,
+    command_args: &[&str],
+    cancel: &CancellationToken,
+    on_chunk: Option<Arc<dyn ChunkSink>>,
+) -> Result<CliOutput> {
+    use crate::cli::{OutputChunk, OutputStream};
+    use std::process::Stdio;
+    use std::sync::Mutex;
+    use tokio::io::{AsyncBufReadExt, BufReader};
+    use tokio::process::Command;
+
+    // Build the user-side command string. The MCP handler invokes us
+    // as `("sh", &["-c", &full_cmd])`, which is the fast path: peel
+    // off the `-c` arg so the shim wraps the body directly instead of
+    // nesting an extra shell. For any other shape, fall back to a
+    // best-effort shell-quoted concatenation.
+    let user_cmd: String = if command == "sh" && command_args.len() == 2 && command_args[0] == "-c"
+    {
+        command_args[1].to_string()
+    } else {
+        let mut parts = vec![crate::file_ops::shell_quote(command)];
+        for a in command_args {
+            parts.push(crate::file_ops::shell_quote(a));
+        }
+        parts.join(" ")
+    };
+
+    let wrapped = crate::exec_shim::wrap();
+    // The user command is passed to the shim via an env var so it
+    // doesn't need to be quoted into a nested `sh -c '...'`. We use
+    // `--remote-env NAME=VALUE` so the devcontainer CLI propagates
+    // it inside the container.
+    let remote_env_arg = format!("{}={}", crate::exec_shim::USER_CMD_ENV, user_cmd);
+
+    // Spawn `devcontainer exec --workspace-folder <ws> --remote-env … sh -c <wrapped>`.
+    let mut cmd = Command::new(crate::cli::CliBinary::Devcontainer.command_name());
+    cmd.args([
+        "exec",
+        "--workspace-folder",
+        workspace_folder,
+        "--remote-env",
+        &remote_env_arg,
+        "sh",
+        "-c",
+        &wrapped,
+    ])
+    .stdin(Stdio::null())
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped())
+    .kill_on_drop(true);
+
+    let mut child = cmd.spawn().map_err(|e| {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            crate::error::Error::DevcontainerCliNotFound
+        } else {
+            crate::error::Error::Io(e)
+        }
+    })?;
+
+    let stdout = child.stdout.take().expect("stdout piped");
+    let stderr = child.stderr.take().expect("stderr piped");
+
+    // Shared captured PGID. The stderr reader fills this in as soon as
+    // the shim's sentinel line arrives; the cancel branch reads it.
+    let pgid: Arc<Mutex<Option<i32>>> = Arc::new(Mutex::new(None));
+
+    // stdout: forward verbatim (no sentinel to scrub).
+    let stdout_task = {
+        let sink = on_chunk.clone();
+        tokio::spawn(async move {
+            let mut buf = String::new();
+            let mut lines = BufReader::new(stdout).lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                if !buf.is_empty() {
+                    buf.push('\n');
+                }
+                buf.push_str(&line);
+                if let Some(s) = sink.as_ref() {
+                    s.on_chunk(OutputChunk {
+                        stream: OutputStream::Stdout,
+                        line,
+                    })
+                    .await;
+                }
+            }
+            if !buf.is_empty() {
+                buf.push('\n');
+            }
+            buf
+        })
+    };
+
+    // stderr: scrub the sentinel line, otherwise forward verbatim.
+    let stderr_task = {
+        let sink = on_chunk.clone();
+        let pgid = pgid.clone();
+        tokio::spawn(async move {
+            let mut buf = String::new();
+            let mut lines = BufReader::new(stderr).lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                if let Some(found) = crate::exec_shim::try_parse_sentinel(&line) {
+                    *pgid.lock().expect("pgid lock") = Some(found);
+                    tracing::debug!(pgid = found, "captured in-container PGID");
+                    continue; // suppress sentinel from user-visible stderr
+                }
+                if !buf.is_empty() {
+                    buf.push('\n');
+                }
+                buf.push_str(&line);
+                if let Some(s) = sink.as_ref() {
+                    s.on_chunk(OutputChunk {
+                        stream: OutputStream::Stderr,
+                        line,
+                    })
+                    .await;
+                }
+            }
+            if !buf.is_empty() {
+                buf.push('\n');
+            }
+            buf
+        })
+    };
+
+    let status = tokio::select! {
+        biased;
+        _ = cancel.cancelled() => {
+            tracing::warn!("devcontainer exec: cancellation received");
+
+            // Kill the in-container process group first, then the host
+            // wrapper. Order matters: if we kill the host wrapper first,
+            // docker exec closes its stdio and we lose the channel —
+            // but the in-container processes keep running anyway.
+            let captured = *pgid.lock().expect("pgid lock");
+            match captured {
+                Some(pgid) => {
+                    if let Err(e) = kill_in_container_pgid(workspace_folder, pgid).await {
+                        tracing::warn!(%e, "failed to kill in-container PGID");
+                    }
+                }
+                None => {
+                    // Sentinel never arrived — either the shim hasn't
+                    // emitted yet (very fast cancel) or `setsid` isn't
+                    // available and the fallback path didn't emit
+                    // before we cancelled. Either way, host-side reap
+                    // is our only lever.
+                    tracing::warn!(
+                        "no in-container PGID captured; relying on host reap (may leak)"
+                    );
+                }
+            }
+
+            // Now bring down the host wrapper and any of its host-side
+            // descendants we *can* see.
+            if let Some(root_pid) = child.id() {
+                crate::process_tree::reap(root_pid, std::time::Duration::from_secs(2)).await;
+            }
+
+            let _ = tokio::time::timeout(
+                std::time::Duration::from_secs(1),
+                child.wait(),
+            )
+            .await;
+            let _ = stdout_task.await;
+            let _ = stderr_task.await;
+            return Err(crate::error::Error::Cancelled);
+        }
+        status = child.wait() => status?,
+    };
+
+    let stdout_buf = stdout_task.await.unwrap_or_default();
+    let stderr_buf = stderr_task.await.unwrap_or_default();
+
+    Ok(CliOutput {
+        exit_code: status.code().unwrap_or(-1),
+        stdout: stdout_buf,
+        stderr: stderr_buf,
+        json: None,
+    })
+}
+
+/// Send SIGTERM (then SIGKILL after a 2s grace) to the in-container
+/// process group `pgid`. Uses bollard's exec API so it works against the
+/// docker daemon without shelling out.
+async fn kill_in_container_pgid(workspace_folder: &str, pgid: i32) -> Result<()> {
+    use bollard::exec::{CreateExecOptions, StartExecOptions};
+
+    let client = docker::connect()?;
+    let container = docker::find_container_by_local_folder(&client, workspace_folder)
+        .await?
+        .ok_or_else(|| {
+            crate::error::Error::Io(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("No devcontainer found for workspace: {workspace_folder}"),
+            ))
+        })?;
+
+    // `kill -<sig> -<pgid>` signals every process in the group. We
+    // deliberately omit the POSIX `--` argument separator because
+    // BusyBox/dash `kill` (common in slim container images) rejects
+    // it as "Illegal number". The form `kill -TERM -N` is accepted
+    // by every shell `kill` we care about.
+    let run = |sig: &'static str| -> futures_util::future::BoxFuture<'static, ()> {
+        let client = client.clone();
+        let container_id = container.id.clone();
+        let cmd = format!("kill -{sig} -{pgid} 2>/dev/null || true");
+        Box::pin(async move {
+            let create = CreateExecOptions {
+                cmd: Some(vec!["sh".to_string(), "-c".to_string(), cmd]),
+                attach_stdout: Some(false),
+                attach_stderr: Some(false),
+                ..Default::default()
+            };
+            match client.create_exec(&container_id, create).await {
+                Ok(res) => {
+                    // `detach: true` makes start_exec return as soon as
+                    // the docker daemon has spawned the kill — we don't
+                    // need to stream its (empty) output. The signal will
+                    // be delivered before we proceed to the next step.
+                    let opts = StartExecOptions {
+                        detach: true,
+                        ..Default::default()
+                    };
+                    if let Err(e) = client.start_exec(&res.id, Some(opts)).await {
+                        tracing::debug!(%e, "start_exec for in-container kill failed");
+                    }
+                }
+                Err(e) => {
+                    tracing::debug!(%e, "create_exec for in-container kill failed");
+                }
+            }
+        })
+    };
+
+    tracing::debug!(pgid, "in-container SIGTERM -<pgid>");
+    run("TERM").await;
+    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    tracing::debug!(pgid, "in-container SIGKILL -<pgid>");
+    run("KILL").await;
+    Ok(())
 }
 
 /// `devcontainer build` — build a dev container image.

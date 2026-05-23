@@ -18,3 +18,5 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 schemars = "1"
 shlex = "1"
+async-trait = "0.1"
+tokio-util = "0.7"
