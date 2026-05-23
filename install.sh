@@ -106,6 +106,7 @@ SKILL_DIRS=(
   "${HOME}/.copilot/skills/devcontainer-mcp"
   "${HOME}/.claude/skills/devcontainer-mcp"
   "${HOME}/.agents/skills/devcontainer-mcp"
+  "${HOME}/.config/opencode/skills/devcontainer-mcp"
 )
 
 echo ""
@@ -346,6 +347,51 @@ else:
   fi
 }
 
+# opencode uses a different config schema (mcp key, type: "local", combined
+# command array, enabled: true) and a different file path.
+configure_opencode_mcp() {
+  local config_file="${HOME}/.config/opencode/opencode.json"
+  local bin_path="${INSTALL_DIR}/devcontainer-mcp"
+
+  if [ ! -f "$config_file" ]; then
+    mkdir -p "$(dirname "$config_file")"
+    cat > "$config_file" << OPENCODEEOF
+{
+  "\$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "devcontainer-mcp": {
+      "type": "local",
+      "command": ["${bin_path}", "serve"],
+      "enabled": true
+    }
+  }
+}
+OPENCODEEOF
+    echo "  ✓ opencode — created ${config_file}"
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -c "
+import json
+path = '${config_file}'
+with open(path) as f:
+    data = json.load(f)
+servers = data.setdefault('mcp', {})
+if 'devcontainer-mcp' not in servers:
+    servers['devcontainer-mcp'] = {
+        'type': 'local',
+        'command': ['${bin_path}', 'serve'],
+        'enabled': True,
+    }
+    with open(path, 'w') as f:
+        json.dump(data, f, indent=2)
+    print('  ✓ opencode — added to ${config_file}')
+else:
+    print('  ✓ opencode — already configured')
+" 2>/dev/null || echo "  ⚠ opencode — could not update ${config_file}"
+  else
+    echo "  ⚠ opencode — exists but python3 not available to merge"
+  fi
+}
+
 echo ""
 echo "==> Configuring MCP clients..."
 
@@ -371,6 +417,9 @@ fi
 
 # Claude Code — ~/.claude.json
 configure_mcp_client "${HOME}/.claude.json" "Claude Code"
+
+# opencode — ~/.config/opencode/opencode.json (uses different schema)
+configure_opencode_mcp
 
 echo ""
 echo "Done! devcontainer-mcp is ready to use."

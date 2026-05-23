@@ -11,7 +11,7 @@
   <img src="https://raw.githubusercontent.com/aniongithub/devcontainer-mcp/gh-pages/screengrabs/devcontainer-mcp-local-docker.gif" alt="devcontainer-mcp local Docker demo" width="720">
 </p>
 
-> Works with **GitHub Copilot**, **Claude**, **Cursor**, and any MCP-compatible client.
+> Works with **GitHub Copilot**, **Claude**, **Cursor**, **opencode**, and any MCP-compatible client.
 
 ## The Problem
 
