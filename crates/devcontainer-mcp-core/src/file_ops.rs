@@ -53,10 +53,15 @@ pub fn apply_edit(content: &str, old_str: &str, new_str: &str) -> Result<String>
 }
 
 /// Shell-escape a string for safe embedding in a shell command.
-fn quote(s: &str) -> String {
+pub fn shell_quote(s: &str) -> String {
     shlex::try_quote(s)
         .unwrap_or(std::borrow::Cow::Borrowed(s))
         .into_owned()
+}
+
+/// Convenience alias for module-local use.
+fn quote(s: &str) -> String {
+    shell_quote(s)
 }
 
 /// Build a shell command that reads a file via `cat`.

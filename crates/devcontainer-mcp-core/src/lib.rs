@@ -5,4 +5,6 @@ pub mod devcontainer;
 pub mod devpod;
 pub mod docker;
 pub mod error;
+pub mod exec_shim;
 pub mod file_ops;
+pub mod process_tree;

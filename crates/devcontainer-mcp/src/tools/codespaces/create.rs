@@ -1,8 +1,11 @@
 use devcontainer_mcp_core::{auth, codespaces};
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::{tool, tool_router};
+use rmcp::model::Meta;
+use rmcp::service::Peer;
+use rmcp::{tool, tool_router, RoleServer};
+use tokio_util::sync::CancellationToken;
 
-use crate::tools::common::format_output;
+use crate::tools::common::{format_output, progress_sink_from_meta};
 use crate::tools::DevContainerMcp;
 
 #[derive(serde::Deserialize, schemars::JsonSchema)]
@@ -36,12 +39,16 @@ impl DevContainerMcp {
     async fn codespaces_create(
         &self,
         Parameters(params): Parameters<CodespacesCreateParams>,
+        ct: CancellationToken,
+        peer: Peer<RoleServer>,
+        meta: Meta,
     ) -> String {
         let env = match auth::resolve_handle_env(&params.auth).await {
             Ok(e) => e,
             Err(e) => return format!("Auth error: {e}"),
         };
-        match codespaces::create(
+        let sink = progress_sink_from_meta(&meta, &peer);
+        match codespaces::create_streaming(
             &env,
             &params.repo,
             params.branch.as_deref(),
@@ -49,6 +56,8 @@ impl DevContainerMcp {
             params.devcontainer_path.as_deref(),
             params.display_name.as_deref(),
             params.idle_timeout.as_deref(),
+            &ct,
+            sink,
         )
         .await
         {

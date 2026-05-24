@@ -1,6 +1,10 @@
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
 
-use crate::cli::{run_cli, CliBinary, CliOutput};
+use crate::cli::{
+    run_cli, run_cli_streaming, run_with_shim, ChunkSink, CliBinary, CliOutput, RemoteKiller,
+};
 use crate::error::{Error, Result};
 
 /// Run a devpod CLI command with the given args.
@@ -29,6 +33,45 @@ pub async fn up(args: &[&str]) -> Result<CliOutput> {
     run_devpod(&cmd_args, false).await
 }
 
+/// `devpod up` — cancellable, streaming variant.
+///
+/// Provisioning a cloud workspace (especially the GCP/AWS/Azure
+/// providers) can take 2–10 minutes. Wrapping `devpod up` through
+/// [`run_cli_streaming`] gives us two things:
+///
+/// 1. **Cancellation**: when the client times out and sends
+///    `notifications/cancelled`, our handler's [`CancellationToken`]
+///    fires and we reap the host process tree (the `devpod` CLI and
+///    its descendants). Devpod's own cleanup logic then unwinds any
+///    partial cloud resources (it has rollback semantics for failed
+///    `up`).
+///
+/// 2. **Progress notifications**: every line of `devpod up` output
+///    ("Creating devcontainer...", "npm install...", …) is forwarded
+///    as an MCP progress notification, keeping the wire warm so
+///    idle-based client timeouts don't trip.
+///
+/// Unlike `ssh_exec_streaming` this path uses [`run_cli_streaming`]
+/// directly — no shim is needed because `devpod up` runs entirely on
+/// the host (it makes GCP API calls; no remote process to reap).
+pub async fn up_streaming(
+    args: &[&str],
+    cancel: &CancellationToken,
+    on_chunk: Option<Arc<dyn ChunkSink>>,
+) -> Result<CliOutput> {
+    let mut cmd_args = vec!["up", "--open-ide=false"];
+    cmd_args.extend_from_slice(args);
+    run_cli_streaming(
+        &CliBinary::DevPod,
+        &cmd_args,
+        false,
+        None,
+        cancel,
+        on_chunk,
+    )
+    .await
+}
+
 /// `devpod stop` — stop a workspace.
 pub async fn stop(workspace: &str) -> Result<CliOutput> {
     run_devpod(&["stop", workspace], false).await
@@ -48,6 +91,25 @@ pub async fn build(args: &[&str]) -> Result<CliOutput> {
     let mut cmd_args = vec!["build"];
     cmd_args.extend_from_slice(args);
     run_devpod(&cmd_args, false).await
+}
+
+/// `devpod build` — cancellable, streaming variant. See [`up_streaming`].
+pub async fn build_streaming(
+    args: &[&str],
+    cancel: &CancellationToken,
+    on_chunk: Option<Arc<dyn ChunkSink>>,
+) -> Result<CliOutput> {
+    let mut cmd_args = vec!["build"];
+    cmd_args.extend_from_slice(args);
+    run_cli_streaming(
+        &CliBinary::DevPod,
+        &cmd_args,
+        false,
+        None,
+        cancel,
+        on_chunk,
+    )
+    .await
 }
 
 // ---------------------------------------------------------------------------
@@ -106,6 +168,88 @@ pub async fn ssh_exec(
         args.push(w);
     }
     run_devpod(&args, false).await
+}
+
+/// `devpod ssh --command` — cancellable, streaming variant.
+///
+/// Same shim treatment as [`crate::devcontainer::exec_streaming`]: the
+/// user's command is wrapped with [`crate::exec_shim::wrap_self_contained`]
+/// so it survives the SSH transport without quoting hazards, the
+/// captured remote PGID is stripped from stderr, and on cancel a
+/// second `devpod ssh --command` delivers `kill -TERM -<pgid>` then
+/// `kill -KILL -<pgid>` to the same workspace.
+///
+/// DevPod (unlike the devcontainer CLI) has no `--remote-env` flag,
+/// hence the self-contained shim variant which embeds the user
+/// command as a base64 blob inside the shell snippet.
+pub async fn ssh_exec_streaming(
+    workspace: &str,
+    command: &str,
+    user: Option<&str>,
+    workdir: Option<&str>,
+    cancel: &CancellationToken,
+    on_chunk: Option<Arc<dyn ChunkSink>>,
+) -> Result<CliOutput> {
+    let wrapped = crate::exec_shim::wrap_self_contained(command);
+    let mut args = vec!["ssh", workspace, "--command", &wrapped];
+    if let Some(u) = user {
+        args.push("--user");
+        args.push(u);
+    }
+    if let Some(w) = workdir {
+        args.push("--workdir");
+        args.push(w);
+    }
+
+    let killer: Arc<dyn RemoteKiller> = Arc::new(DevpodKiller {
+        workspace: workspace.to_string(),
+        user: user.map(str::to_string),
+    });
+
+    run_with_shim(
+        &CliBinary::DevPod,
+        &args,
+        None,
+        cancel,
+        on_chunk,
+        killer,
+    )
+    .await
+}
+
+/// Delivers `kill -<sig> -<pgid>` inside a DevPod workspace by
+/// spawning a fresh short-lived `devpod ssh --command "kill ..."`.
+///
+/// We can't reuse the original SSH session (it's busy running the
+/// workload that we're trying to interrupt), so each kill is its own
+/// `devpod ssh` round trip. This is slower than the docker exec path
+/// — SSH auth handshake plus DevPod's own session setup — but cancel
+/// is a rare path and we'd rather pay 1–2 seconds of latency than
+/// leak the workload.
+struct DevpodKiller {
+    workspace: String,
+    user: Option<String>,
+}
+
+#[async_trait::async_trait]
+impl RemoteKiller for DevpodKiller {
+    async fn kill_pgid(&self, pgid: i32, signal: &str) {
+        // `kill -<sig> -<pgid>` with the same BusyBox-friendly form
+        // we use for the devcontainer backend (no `--`).
+        let cmd = format!("kill -{signal} -{pgid} 2>/dev/null || true");
+        let mut args = vec!["ssh", &self.workspace, "--command", &cmd];
+        if let Some(u) = self.user.as_deref() {
+            args.push("--user");
+            args.push(u);
+        }
+        // Use the plain (non-streaming, non-cancellable) runner so we
+        // don't recursively pull in the whole shim machinery for a
+        // 50-byte one-shot. We swallow errors: a kill that fails
+        // because the target has already exited is fine.
+        if let Err(e) = run_cli(&CliBinary::DevPod, &args, false).await {
+            tracing::debug!(%e, pgid, signal, "devpod ssh kill failed");
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

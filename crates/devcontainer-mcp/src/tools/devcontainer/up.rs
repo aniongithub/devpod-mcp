@@ -1,8 +1,11 @@
 use devcontainer_mcp_core::devcontainer;
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::{tool, tool_router};
+use rmcp::model::Meta;
+use rmcp::service::Peer;
+use rmcp::{tool, tool_router, RoleServer};
+use tokio_util::sync::CancellationToken;
 
-use crate::tools::common::format_output;
+use crate::tools::common::{format_output, progress_sink_from_meta};
 use crate::tools::DevContainerMcp;
 
 #[derive(serde::Deserialize, schemars::JsonSchema)]
@@ -28,6 +31,9 @@ impl DevContainerMcp {
     async fn devcontainer_up(
         &self,
         Parameters(params): Parameters<DevcontainerUpParams>,
+        ct: CancellationToken,
+        peer: Peer<RoleServer>,
+        meta: Meta,
     ) -> String {
         let extra: Vec<String> = params
             .extra_args
@@ -35,10 +41,13 @@ impl DevContainerMcp {
             .and_then(shlex::split)
             .unwrap_or_default();
         let extra_refs: Vec<&str> = extra.iter().map(|s| s.as_str()).collect();
-        match devcontainer::up(
+        let sink = progress_sink_from_meta(&meta, &peer);
+        match devcontainer::up_streaming(
             &params.workspace_folder,
             params.config.as_deref(),
             &extra_refs,
+            &ct,
+            sink,
         )
         .await
         {

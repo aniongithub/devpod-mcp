@@ -1,8 +1,11 @@
 use devcontainer_mcp_core::devcontainer;
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::{tool, tool_router};
+use rmcp::model::Meta;
+use rmcp::service::Peer;
+use rmcp::{tool, tool_router, RoleServer};
+use tokio_util::sync::CancellationToken;
 
-use crate::tools::common::format_output;
+use crate::tools::common::{format_output, progress_sink_from_meta};
 use crate::tools::DevContainerMcp;
 
 #[derive(serde::Deserialize, schemars::JsonSchema)]
@@ -24,12 +27,26 @@ impl DevContainerMcp {
     async fn devcontainer_exec(
         &self,
         Parameters(params): Parameters<DevcontainerExecParams>,
+        ct: CancellationToken,
+        peer: Peer<RoleServer>,
+        meta: Meta,
     ) -> String {
         let full_cmd = match &params.args {
             Some(a) => format!("{} {}", params.command, a),
             None => params.command,
         };
-        match devcontainer::exec(&params.workspace_folder, "sh", &["-c", &full_cmd]).await {
+
+        let sink = progress_sink_from_meta(&meta, &peer);
+
+        match devcontainer::exec_streaming(
+            &params.workspace_folder,
+            "sh",
+            &["-c", &full_cmd],
+            &ct,
+            sink,
+        )
+        .await
+        {
             Ok(output) => format_output(&output),
             Err(e) => format!("Error: {e}"),
         }
