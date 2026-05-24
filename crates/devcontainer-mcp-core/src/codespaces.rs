@@ -3,7 +3,8 @@ use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
 use crate::cli::{
-    run_cli_with_env, run_with_shim, ChunkSink, CliBinary, CliOutput, RemoteKiller,
+    run_cli_streaming, run_cli_with_env, run_with_shim, ChunkSink, CliBinary, CliOutput,
+    RemoteKiller,
 };
 use crate::error::Result;
 
@@ -59,6 +60,52 @@ pub async fn create(
         args.push(t);
     }
     run_gh_cs(&args, false, Some(env)).await
+}
+
+/// `gh codespace create` — cancellable, streaming variant.
+///
+/// Codespace creation takes 3–5 minutes (image pull, devcontainer
+/// build, postCreate, …). Streams `gh codespace create` output as
+/// progress notifications and honors cancellation — when the client
+/// times out we kill the host `gh` process. Note: this only reaps
+/// the host wrapper; if the GitHub API has already started
+/// provisioning the codespace remotely, the codespace itself will
+/// continue to come up and bill until the caller explicitly deletes
+/// it via `codespaces_delete`. The wire-level cancel is the most we
+/// can do — there's no `gh codespace cancel-create` API.
+pub async fn create_streaming(
+    env: &HashMap<String, String>,
+    repo: &str,
+    branch: Option<&str>,
+    machine: Option<&str>,
+    devcontainer_path: Option<&str>,
+    display_name: Option<&str>,
+    idle_timeout: Option<&str>,
+    cancel: &CancellationToken,
+    on_chunk: Option<Arc<dyn ChunkSink>>,
+) -> Result<CliOutput> {
+    let mut args = vec!["codespace", "create", "--repo", repo];
+    if let Some(b) = branch {
+        args.push("--branch");
+        args.push(b);
+    }
+    if let Some(m) = machine {
+        args.push("--machine");
+        args.push(m);
+    }
+    if let Some(d) = devcontainer_path {
+        args.push("--devcontainer-path");
+        args.push(d);
+    }
+    if let Some(n) = display_name {
+        args.push("--display-name");
+        args.push(n);
+    }
+    if let Some(t) = idle_timeout {
+        args.push("--idle-timeout");
+        args.push(t);
+    }
+    run_cli_streaming(&CliBinary::Gh, &args, false, Some(env), cancel, on_chunk).await
 }
 
 /// `gh codespace list` — list codespaces.

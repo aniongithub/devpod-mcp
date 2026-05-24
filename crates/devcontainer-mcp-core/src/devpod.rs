@@ -2,7 +2,9 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
-use crate::cli::{run_cli, run_with_shim, ChunkSink, CliBinary, CliOutput, RemoteKiller};
+use crate::cli::{
+    run_cli, run_cli_streaming, run_with_shim, ChunkSink, CliBinary, CliOutput, RemoteKiller,
+};
 use crate::error::{Error, Result};
 
 /// Run a devpod CLI command with the given args.
@@ -31,6 +33,45 @@ pub async fn up(args: &[&str]) -> Result<CliOutput> {
     run_devpod(&cmd_args, false).await
 }
 
+/// `devpod up` — cancellable, streaming variant.
+///
+/// Provisioning a cloud workspace (especially the GCP/AWS/Azure
+/// providers) can take 2–10 minutes. Wrapping `devpod up` through
+/// [`run_cli_streaming`] gives us two things:
+///
+/// 1. **Cancellation**: when the client times out and sends
+///    `notifications/cancelled`, our handler's [`CancellationToken`]
+///    fires and we reap the host process tree (the `devpod` CLI and
+///    its descendants). Devpod's own cleanup logic then unwinds any
+///    partial cloud resources (it has rollback semantics for failed
+///    `up`).
+///
+/// 2. **Progress notifications**: every line of `devpod up` output
+///    ("Creating devcontainer...", "npm install...", …) is forwarded
+///    as an MCP progress notification, keeping the wire warm so
+///    idle-based client timeouts don't trip.
+///
+/// Unlike `ssh_exec_streaming` this path uses [`run_cli_streaming`]
+/// directly — no shim is needed because `devpod up` runs entirely on
+/// the host (it makes GCP API calls; no remote process to reap).
+pub async fn up_streaming(
+    args: &[&str],
+    cancel: &CancellationToken,
+    on_chunk: Option<Arc<dyn ChunkSink>>,
+) -> Result<CliOutput> {
+    let mut cmd_args = vec!["up", "--open-ide=false"];
+    cmd_args.extend_from_slice(args);
+    run_cli_streaming(
+        &CliBinary::DevPod,
+        &cmd_args,
+        false,
+        None,
+        cancel,
+        on_chunk,
+    )
+    .await
+}
+
 /// `devpod stop` — stop a workspace.
 pub async fn stop(workspace: &str) -> Result<CliOutput> {
     run_devpod(&["stop", workspace], false).await
@@ -50,6 +91,25 @@ pub async fn build(args: &[&str]) -> Result<CliOutput> {
     let mut cmd_args = vec!["build"];
     cmd_args.extend_from_slice(args);
     run_devpod(&cmd_args, false).await
+}
+
+/// `devpod build` — cancellable, streaming variant. See [`up_streaming`].
+pub async fn build_streaming(
+    args: &[&str],
+    cancel: &CancellationToken,
+    on_chunk: Option<Arc<dyn ChunkSink>>,
+) -> Result<CliOutput> {
+    let mut cmd_args = vec!["build"];
+    cmd_args.extend_from_slice(args);
+    run_cli_streaming(
+        &CliBinary::DevPod,
+        &cmd_args,
+        false,
+        None,
+        cancel,
+        on_chunk,
+    )
+    .await
 }
 
 // ---------------------------------------------------------------------------

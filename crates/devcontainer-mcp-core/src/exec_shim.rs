@@ -103,15 +103,33 @@ pub fn wrap_self_contained(user_cmd: &str) -> String {
     )
 }
 
-/// If `line` is the shim's sentinel, return the captured PGID.
+/// If `line` contains the shim's sentinel, return the captured PGID.
 /// Otherwise return `None`. The caller should suppress matching lines
 /// from any downstream output.
+///
+/// We accept the sentinel anywhere within the line, not just as a
+/// standalone match, because intermediate transports decorate remote
+/// stderr with prefixes that vary by backend:
+///   - `gh codespace ssh`: passes lines through unmodified.
+///   - `devpod ssh`: prefixes each line with ANSI color codes, a
+///     timestamp, and an `info`/`error` log-level tag.
+///   - Future backends may layer on their own prefixes.
+///
+/// The sentinel itself (`__DCMCP_PGID=NNN__`) is intentionally
+/// distinctive — both delimiters are `__DCMCP_*__` — so the chance
+/// of a false positive from user output containing that exact byte
+/// sequence is vanishingly small. Bounding the digit count to 31
+/// bits keeps us safe against malformed input that would otherwise
+/// trip `parse`'s overflow check.
 pub fn try_parse_sentinel(line: &str) -> Option<i32> {
-    // Match `^\s*__DCMCP_PGID=(\d+)__\s*$`. A hand-rolled scan keeps
-    // the dependency footprint at zero.
-    let trimmed = line.trim();
-    let rest = trimmed.strip_prefix(SENTINEL_PREFIX)?;
-    let num = rest.strip_suffix(SENTINEL_SUFFIX)?;
+    // Locate the prefix; bail if absent.
+    let after_prefix = line.find(SENTINEL_PREFIX)
+        .map(|i| &line[i + SENTINEL_PREFIX.len()..])?;
+    // The PGID runs from here to the next `__` (the suffix). Look
+    // forward for the suffix; if not found, this isn't our sentinel
+    // (could be a substring collision in user output).
+    let end = after_prefix.find(SENTINEL_SUFFIX)?;
+    let num = &after_prefix[..end];
     if num.is_empty() || !num.bytes().all(|b| b.is_ascii_digit()) {
         return None;
     }
@@ -168,12 +186,35 @@ mod tests {
     }
 
     #[test]
+    fn try_parse_sentinel_accepts_decorated_lines() {
+        // Real-world cases observed against backend transports that
+        // decorate remote stderr with their own prefixes:
+        //
+        // - devpod ssh prepends ANSI color codes + timestamp + log level.
+        // - Some shells may inject ESC sequences from PROMPT_COMMAND
+        //   into stderr on first connection.
+        //
+        // The sentinel itself is distinctive enough that "anywhere in
+        // the line" is safe in practice.
+        assert_eq!(
+            try_parse_sentinel("\u{1b}[0;1;36minfo \u{1b}[0m__DCMCP_PGID=385__"),
+            Some(385),
+        );
+        assert_eq!(
+            try_parse_sentinel("[19:05:32] info __DCMCP_PGID=12345__"),
+            Some(12345),
+        );
+    }
+
+    #[test]
     fn try_parse_sentinel_rejects_garbage() {
         assert_eq!(try_parse_sentinel("hello"), None);
         assert_eq!(try_parse_sentinel("__DCMCP_PGID=abc__"), None);
         assert_eq!(try_parse_sentinel("PGID=42"), None);
-        // Don't accept it embedded in other text:
-        assert_eq!(try_parse_sentinel("prefix __DCMCP_PGID=42__"), None);
+        // Truncated (no terminator) — must not match.
+        assert_eq!(try_parse_sentinel("__DCMCP_PGID=42"), None);
+        // Missing PGID number.
+        assert_eq!(try_parse_sentinel("__DCMCP_PGID=__"), None);
     }
 
     #[test]

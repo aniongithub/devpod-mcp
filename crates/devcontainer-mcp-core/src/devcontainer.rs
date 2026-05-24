@@ -1,4 +1,6 @@
-use crate::cli::{run_cli, run_with_shim, ChunkSink, CliBinary, CliOutput, RemoteKiller};
+use crate::cli::{
+    run_cli, run_cli_streaming, run_with_shim, ChunkSink, CliBinary, CliOutput, RemoteKiller,
+};
 use crate::docker;
 use crate::error::Result;
 use std::sync::Arc;
@@ -26,6 +28,38 @@ pub async fn up(
     }
     args.extend_from_slice(extra_args);
     run_devcontainer(&args, true).await
+}
+
+/// `devcontainer up` — cancellable, streaming variant.
+///
+/// `devcontainer up` does a docker build + container create + the
+/// devcontainer lifecycle commands (postCreate, postStart, etc.) all
+/// in one invocation. That can easily take several minutes on a
+/// cold image. Same rationale as `crate::devpod::up_streaming`:
+/// cancellation prevents leaked partial-up containers, and progress
+/// streaming keeps client transports warm.
+pub async fn up_streaming(
+    workspace_folder: &str,
+    config: Option<&str>,
+    extra_args: &[&str],
+    cancel: &CancellationToken,
+    on_chunk: Option<Arc<dyn ChunkSink>>,
+) -> Result<CliOutput> {
+    let mut args = vec!["up", "--workspace-folder", workspace_folder];
+    if let Some(c) = config {
+        args.push("--config");
+        args.push(c);
+    }
+    args.extend_from_slice(extra_args);
+    run_cli_streaming(
+        &CliBinary::Devcontainer,
+        &args,
+        true,
+        None,
+        cancel,
+        on_chunk,
+    )
+    .await
 }
 
 /// `devcontainer exec` — execute a command in a running dev container.
@@ -183,6 +217,27 @@ pub async fn build(workspace_folder: &str, extra_args: &[&str]) -> Result<CliOut
     let mut args = vec!["build", "--workspace-folder", workspace_folder];
     args.extend_from_slice(extra_args);
     run_devcontainer(&args, true).await
+}
+
+/// `devcontainer build` — cancellable, streaming variant. See
+/// [`up_streaming`].
+pub async fn build_streaming(
+    workspace_folder: &str,
+    extra_args: &[&str],
+    cancel: &CancellationToken,
+    on_chunk: Option<Arc<dyn ChunkSink>>,
+) -> Result<CliOutput> {
+    let mut args = vec!["build", "--workspace-folder", workspace_folder];
+    args.extend_from_slice(extra_args);
+    run_cli_streaming(
+        &CliBinary::Devcontainer,
+        &args,
+        true,
+        None,
+        cancel,
+        on_chunk,
+    )
+    .await
 }
 
 /// `devcontainer read-configuration` — read devcontainer config as JSON.
