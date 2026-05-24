@@ -73,6 +73,12 @@ pub async fn create(
 /// continue to come up and bill until the caller explicitly deletes
 /// it via `codespaces_delete`. The wire-level cancel is the most we
 /// can do — there's no `gh codespace cancel-create` API.
+//
+// `clippy::too_many_arguments` — each parameter mirrors a distinct
+// `gh codespace create` flag, and the non-streaming sibling
+// [`create`] has the same shape with one fewer pair. Bundling into
+// a struct would obscure the call site for no real readability win.
+#[allow(clippy::too_many_arguments)]
 pub async fn create_streaming(
     env: &HashMap<String, String>,
     repo: &str,
