@@ -8,6 +8,10 @@ use crate::tools::DevContainerMcp;
 struct DevcontainerStopParams {
     #[schemars(description = "Path to the workspace folder (used to find the container by label)")]
     workspace_folder: String,
+    #[schemars(
+        description = "Path to a specific devcontainer.json (use to disambiguate multi-container workspaces)"
+    )]
+    config: Option<String>,
 }
 
 #[tool_router(router = devcontainer_stop_router, vis = "pub(super)")]
@@ -20,7 +24,7 @@ impl DevContainerMcp {
         &self,
         Parameters(params): Parameters<DevcontainerStopParams>,
     ) -> String {
-        match devcontainer::stop(&params.workspace_folder).await {
+        match devcontainer::stop(&params.workspace_folder, params.config.as_deref()).await {
             Ok(msg) => msg,
             Err(e) => format!("Error: {e}"),
         }

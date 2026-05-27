@@ -1,7 +1,8 @@
 use crate::cli::{
     run_cli, run_cli_streaming, run_with_shim, ChunkSink, CliBinary, CliOutput, RemoteKiller,
 };
-use crate::docker;
+use crate::devcontainer_config::{resolve_config, ResolvedConfig};
+use crate::docker::{self, DevcontainerLookup};
 use crate::error::Result;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
@@ -9,6 +10,63 @@ use tokio_util::sync::CancellationToken;
 /// Run a `devcontainer` CLI command.
 async fn run_devcontainer(args: &[&str], parse_json: bool) -> Result<CliOutput> {
     run_cli(&CliBinary::Devcontainer, args, parse_json).await
+}
+
+/// Best-effort resolve of `config` against `workspace_folder`. Returns
+/// `None` if `config` is `None` *or* if parsing fails (we log + fall back
+/// to no-config matching so a malformed config file never blocks lookups
+/// the agent could otherwise satisfy).
+fn try_resolve(workspace_folder: &str, config: Option<&str>) -> Option<ResolvedConfig> {
+    let cfg = config?;
+    match resolve_config(workspace_folder, cfg) {
+        Ok(r) => Some(r),
+        Err(e) => {
+            tracing::warn!(%e, config = %cfg, "failed to resolve devcontainer config; lookup will fall back to no-config matching");
+            None
+        }
+    }
+}
+
+/// Make `config` absolute against `workspace_folder` so the devcontainer
+/// CLI resolves it correctly regardless of the MCP server's CWD. If
+/// already absolute, returned unchanged. Falls back to the input when
+/// canonicalize fails (e.g. file doesn't exist yet).
+fn abs_config(workspace_folder: &str, config: &str) -> String {
+    let p = std::path::Path::new(config);
+    let joined = if p.is_absolute() {
+        p.to_path_buf()
+    } else {
+        std::path::Path::new(workspace_folder).join(p)
+    };
+    std::fs::canonicalize(&joined)
+        .map(|c| c.to_string_lossy().into_owned())
+        .unwrap_or_else(|_| joined.to_string_lossy().into_owned())
+}
+
+/// Build a uniform "ambiguous match" error string for stop/remove/status
+/// callers when multiple containers match `workspace_folder` and no
+/// `config` was supplied. Lists each candidate's id, name, compose service,
+/// and devcontainer.config_file label so the agent has everything it needs
+/// to retry with the right `config`.
+fn ambiguous_error(workspace_folder: &str, candidates: &[docker::ContainerInfo]) -> String {
+    let lines: Vec<String> = candidates
+        .iter()
+        .map(|c| {
+            let svc = c.compose_service().unwrap_or("(none)");
+            let cfg = c.devcontainer_config_file().unwrap_or("(unlabeled)");
+            format!(
+                "  - id={short} name={name} service={svc} config_file={cfg}",
+                short = c.id.chars().take(12).collect::<String>(),
+                name = c.name,
+            )
+        })
+        .collect();
+    format!(
+        "Multiple containers match workspace `{workspace_folder}`. \
+         Re-run with `config` set to the devcontainer.json path of the one you want. \
+         Use `devcontainer_list_configs` to enumerate. Candidates:\n{}",
+        lines.join("\n")
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -22,7 +80,8 @@ pub async fn up(
     extra_args: &[&str],
 ) -> Result<CliOutput> {
     let mut args = vec!["up", "--workspace-folder", workspace_folder];
-    if let Some(c) = config {
+    let cfg_abs = config.map(|c| abs_config(workspace_folder, c));
+    if let Some(c) = cfg_abs.as_deref() {
         args.push("--config");
         args.push(c);
     }
@@ -46,7 +105,8 @@ pub async fn up_streaming(
     on_chunk: Option<Arc<dyn ChunkSink>>,
 ) -> Result<CliOutput> {
     let mut args = vec!["up", "--workspace-folder", workspace_folder];
-    if let Some(c) = config {
+    let cfg_abs = config.map(|c| abs_config(workspace_folder, c));
+    if let Some(c) = cfg_abs.as_deref() {
         args.push("--config");
         args.push(c);
     }
@@ -63,12 +123,32 @@ pub async fn up_streaming(
 }
 
 /// `devcontainer exec` — execute a command in a running dev container.
+///
+/// Resolves the target container via our reliable label-based lookup and
+/// passes its id to the CLI via `--container-id`. This works for sibling
+/// compose containers that the devcontainer CLI's own workspace-folder
+/// lookup can't see (because only the first container in a compose stack
+/// gets stamped with `devcontainer.*` labels).
 pub async fn exec(
     workspace_folder: &str,
+    config: Option<&str>,
     command: &str,
     command_args: &[&str],
 ) -> Result<CliOutput> {
-    let mut args = vec!["exec", "--workspace-folder", workspace_folder, command];
+    let container = lookup_one_or_err(workspace_folder, config).await?;
+    let mut args = vec![
+        "exec",
+        "--container-id",
+        &container.id,
+        "--workspace-folder",
+        workspace_folder,
+    ];
+    let cfg_abs = config.map(|c| abs_config(workspace_folder, c));
+    if let Some(c) = cfg_abs.as_deref() {
+        args.push("--config");
+        args.push(c);
+    }
+    args.push(command);
     args.extend_from_slice(command_args);
     run_devcontainer(&args, false).await
 }
@@ -90,6 +170,7 @@ pub async fn exec(
 /// and use the captured PGID to reap them on cancel.
 pub async fn exec_streaming(
     workspace_folder: &str,
+    config: Option<&str>,
     command: &str,
     command_args: &[&str],
     cancel: &CancellationToken,
@@ -120,21 +201,27 @@ pub async fn exec_streaming(
     // (DevPod, Codespaces) that can't pass remote env vars.
     let remote_env_arg = format!("{}={}", crate::exec_shim::USER_CMD_ENV, user_cmd);
 
-    let args: [&str; 7] = [
+    // Resolve target container up-front (see `exec` docs for rationale).
+    let container = lookup_one_or_err(workspace_folder, config).await?;
+
+    let mut all_args: Vec<&str> = vec![
         "exec",
+        "--container-id",
+        &container.id,
         "--workspace-folder",
         workspace_folder,
-        "--remote-env",
-        &remote_env_arg,
-        "sh",
-        "-c",
     ];
-    // run_with_shim takes a slice of &str; build a Vec to add the wrapped tail.
-    let mut all_args: Vec<&str> = args.to_vec();
+    let cfg_abs = config.map(|c| abs_config(workspace_folder, c));
+    if let Some(c) = cfg_abs.as_deref() {
+        all_args.push("--config");
+        all_args.push(c);
+    }
+    all_args.extend_from_slice(&["--remote-env", &remote_env_arg, "sh", "-c"]);
     all_args.push(&wrapped);
 
     let killer: Arc<dyn RemoteKiller> = Arc::new(DevcontainerKiller {
         workspace_folder: workspace_folder.to_string(),
+        config: config.map(str::to_string),
     });
 
     run_with_shim(
@@ -149,9 +236,12 @@ pub async fn exec_streaming(
 }
 
 /// Delivers `kill -<sig> -<pgid>` inside the devcontainer associated
-/// with a workspace folder, using bollard's exec API.
+/// with a workspace folder, using bollard's exec API. When `config` is
+/// provided, the target container is disambiguated using the same
+/// resolution as the rest of the lifecycle tools.
 struct DevcontainerKiller {
     workspace_folder: String,
+    config: Option<String>,
 }
 
 #[async_trait::async_trait]
@@ -166,20 +256,34 @@ impl RemoteKiller for DevcontainerKiller {
                 return;
             }
         };
-        let container = match docker::find_container_by_local_folder(&client, &self.workspace_folder).await {
-            Ok(Some(c)) => c,
-            Ok(None) => {
-                tracing::warn!(
-                    workspace = %self.workspace_folder,
-                    "no devcontainer found for in-container kill"
-                );
-                return;
-            }
-            Err(e) => {
-                tracing::warn!(%e, "container lookup failed during in-container kill");
-                return;
-            }
-        };
+        let resolved = try_resolve(&self.workspace_folder, self.config.as_deref());
+        let container =
+            match docker::find_devcontainer(&client, &self.workspace_folder, resolved.as_ref())
+                .await
+            {
+                Ok(DevcontainerLookup::One(c)) => c,
+                Ok(DevcontainerLookup::Many(candidates)) => {
+                    // Best effort: pick the first; we may be racing the
+                    // user's own teardown, so an imperfect kill is fine.
+                    tracing::warn!(
+                        workspace = %self.workspace_folder,
+                        count = candidates.len(),
+                        "ambiguous container lookup during in-container kill; picking first"
+                    );
+                    candidates.into_iter().next().unwrap()
+                }
+                Ok(DevcontainerLookup::None) => {
+                    tracing::warn!(
+                        workspace = %self.workspace_folder,
+                        "no devcontainer found for in-container kill"
+                    );
+                    return;
+                }
+                Err(e) => {
+                    tracing::warn!(%e, "container lookup failed during in-container kill");
+                    return;
+                }
+            };
 
         // `kill -<sig> -<pgid>` signals every process in the group.
         // The POSIX `--` argument separator is deliberately omitted
@@ -213,8 +317,17 @@ impl RemoteKiller for DevcontainerKiller {
 }
 
 /// `devcontainer build` — build a dev container image.
-pub async fn build(workspace_folder: &str, extra_args: &[&str]) -> Result<CliOutput> {
+pub async fn build(
+    workspace_folder: &str,
+    config: Option<&str>,
+    extra_args: &[&str],
+) -> Result<CliOutput> {
     let mut args = vec!["build", "--workspace-folder", workspace_folder];
+    let cfg_abs = config.map(|c| abs_config(workspace_folder, c));
+    if let Some(c) = cfg_abs.as_deref() {
+        args.push("--config");
+        args.push(c);
+    }
     args.extend_from_slice(extra_args);
     run_devcontainer(&args, true).await
 }
@@ -223,11 +336,17 @@ pub async fn build(workspace_folder: &str, extra_args: &[&str]) -> Result<CliOut
 /// [`up_streaming`].
 pub async fn build_streaming(
     workspace_folder: &str,
+    config: Option<&str>,
     extra_args: &[&str],
     cancel: &CancellationToken,
     on_chunk: Option<Arc<dyn ChunkSink>>,
 ) -> Result<CliOutput> {
     let mut args = vec!["build", "--workspace-folder", workspace_folder];
+    let cfg_abs = config.map(|c| abs_config(workspace_folder, c));
+    if let Some(c) = cfg_abs.as_deref() {
+        args.push("--config");
+        args.push(c);
+    }
     args.extend_from_slice(extra_args);
     run_cli_streaming(
         &CliBinary::Devcontainer,
@@ -243,7 +362,8 @@ pub async fn build_streaming(
 /// `devcontainer read-configuration` — read devcontainer config as JSON.
 pub async fn read_configuration(workspace_folder: &str, config: Option<&str>) -> Result<CliOutput> {
     let mut args = vec!["read-configuration", "--workspace-folder", workspace_folder];
-    if let Some(c) = config {
+    let cfg_abs = config.map(|c| abs_config(workspace_folder, c));
+    if let Some(c) = cfg_abs.as_deref() {
         args.push("--config");
         args.push(c);
     }
@@ -255,40 +375,65 @@ pub async fn read_configuration(workspace_folder: &str, config: Option<&str>) ->
 // Lifecycle via bollard (devcontainer CLI has no stop/down)
 // ---------------------------------------------------------------------------
 
-/// Stop a dev container found by its workspace folder label.
-pub async fn stop(workspace_folder: &str) -> Result<String> {
+/// Look up the single container for `workspace_folder` + `config`,
+/// returning a structured error for `None` / `Many`. Used by stop/remove,
+/// which refuse to act on ambiguous matches.
+async fn lookup_one_or_err(
+    workspace_folder: &str,
+    config: Option<&str>,
+) -> Result<docker::ContainerInfo> {
     let client = docker::connect()?;
-    let container = docker::find_container_by_local_folder(&client, workspace_folder)
-        .await?
-        .ok_or_else(|| {
-            crate::error::Error::Io(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                format!("No devcontainer found for workspace: {workspace_folder}"),
-            ))
-        })?;
+    let resolved = try_resolve(workspace_folder, config);
+    match docker::find_devcontainer(&client, workspace_folder, resolved.as_ref()).await? {
+        DevcontainerLookup::One(c) => Ok(c),
+        DevcontainerLookup::None => Err(crate::error::Error::Io(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("No devcontainer found for workspace: {workspace_folder}"),
+        ))),
+        DevcontainerLookup::Many(candidates) => Err(crate::error::Error::Io(
+            std::io::Error::other(ambiguous_error(workspace_folder, &candidates)),
+        )),
+    }
+}
+
+/// Stop a dev container found by its workspace folder label.
+pub async fn stop(workspace_folder: &str, config: Option<&str>) -> Result<String> {
+    let client = docker::connect()?;
+    let container = lookup_one_or_err(workspace_folder, config).await?;
     docker::stop_container(&client, &container.id).await?;
     Ok(format!("Stopped container {}", container.name))
 }
 
 /// Remove a dev container found by its workspace folder label.
-pub async fn remove(workspace_folder: &str, force: bool) -> Result<String> {
+pub async fn remove(workspace_folder: &str, config: Option<&str>, force: bool) -> Result<String> {
     let client = docker::connect()?;
-    let container = docker::find_container_by_local_folder(&client, workspace_folder)
-        .await?
-        .ok_or_else(|| {
-            crate::error::Error::Io(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                format!("No devcontainer found for workspace: {workspace_folder}"),
-            ))
-        })?;
+    let container = lookup_one_or_err(workspace_folder, config).await?;
     docker::remove_container(&client, &container.id, force).await?;
     Ok(format!("Removed container {}", container.name))
 }
 
-/// Get status of a dev container by workspace folder label.
-pub async fn status(workspace_folder: &str) -> Result<Option<docker::ContainerInfo>> {
+/// Status outcome for a devcontainer lookup. `Ambiguous` is the
+/// multi-container case where no `config` was supplied to disambiguate;
+/// callers should surface the candidates and point the agent at
+/// `devcontainer_list_configs`.
+#[derive(Debug, Clone)]
+pub enum StatusOutcome {
+    NotFound,
+    Found(docker::ContainerInfo),
+    Ambiguous(Vec<docker::ContainerInfo>),
+}
+
+/// Get status of a dev container by workspace folder + optional config.
+pub async fn status(workspace_folder: &str, config: Option<&str>) -> Result<StatusOutcome> {
     let client = docker::connect()?;
-    docker::find_container_by_local_folder(&client, workspace_folder).await
+    let resolved = try_resolve(workspace_folder, config);
+    Ok(
+        match docker::find_devcontainer(&client, workspace_folder, resolved.as_ref()).await? {
+            DevcontainerLookup::None => StatusOutcome::NotFound,
+            DevcontainerLookup::One(c) => StatusOutcome::Found(c),
+            DevcontainerLookup::Many(v) => StatusOutcome::Ambiguous(v),
+        },
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -296,25 +441,35 @@ pub async fn status(workspace_folder: &str) -> Result<Option<docker::ContainerIn
 // ---------------------------------------------------------------------------
 
 /// Read a file from a dev container.
-pub async fn file_read(workspace_folder: &str, path: &str) -> Result<CliOutput> {
+pub async fn file_read(
+    workspace_folder: &str,
+    config: Option<&str>,
+    path: &str,
+) -> Result<CliOutput> {
     let cmd = crate::file_ops::read_file_command(path);
-    exec(workspace_folder, "sh", &["-c", &cmd]).await
+    exec(workspace_folder, config, "sh", &["-c", &cmd]).await
 }
 
 /// Write (create or overwrite) a file in a dev container.
-pub async fn file_write(workspace_folder: &str, path: &str, content: &str) -> Result<CliOutput> {
+pub async fn file_write(
+    workspace_folder: &str,
+    config: Option<&str>,
+    path: &str,
+    content: &str,
+) -> Result<CliOutput> {
     let cmd = crate::file_ops::write_file_command(path, content);
-    exec(workspace_folder, "sh", &["-c", &cmd]).await
+    exec(workspace_folder, config, "sh", &["-c", &cmd]).await
 }
 
 /// Surgical edit: replace exactly one occurrence of `old_str` with `new_str`.
 pub async fn file_edit(
     workspace_folder: &str,
+    config: Option<&str>,
     path: &str,
     old_str: &str,
     new_str: &str,
 ) -> Result<String> {
-    let read_output = file_read(workspace_folder, path).await?;
+    let read_output = file_read(workspace_folder, config, path).await?;
     if read_output.exit_code != 0 {
         return Err(crate::error::Error::FileRead(format!(
             "Failed to read {path}: {}",
@@ -324,7 +479,7 @@ pub async fn file_edit(
 
     let modified = crate::file_ops::apply_edit(&read_output.stdout, old_str, new_str)?;
 
-    let write_output = file_write(workspace_folder, path, &modified).await?;
+    let write_output = file_write(workspace_folder, config, path, &modified).await?;
     if write_output.exit_code != 0 {
         return Err(crate::error::Error::FileEdit(format!(
             "Failed to write {path}: {}",
@@ -336,7 +491,11 @@ pub async fn file_edit(
 }
 
 /// List directory contents in a dev container.
-pub async fn file_list(workspace_folder: &str, path: &str) -> Result<CliOutput> {
+pub async fn file_list(
+    workspace_folder: &str,
+    config: Option<&str>,
+    path: &str,
+) -> Result<CliOutput> {
     let cmd = crate::file_ops::list_dir_command(path);
-    exec(workspace_folder, "sh", &["-c", &cmd]).await
+    exec(workspace_folder, config, "sh", &["-c", &cmd]).await
 }

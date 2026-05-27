@@ -12,6 +12,10 @@ use crate::tools::DevContainerMcp;
 struct DevcontainerExecParams {
     #[schemars(description = "Path to the workspace folder")]
     workspace_folder: String,
+    #[schemars(
+        description = "Path to a specific devcontainer.json (use to disambiguate multi-container workspaces)"
+    )]
+    config: Option<String>,
     #[schemars(description = "Command to execute inside the container")]
     command: String,
     #[schemars(description = "Arguments for the command as a space-separated string")]
@@ -40,6 +44,7 @@ impl DevContainerMcp {
 
         match devcontainer::exec_streaming(
             &params.workspace_folder,
+            params.config.as_deref(),
             "sh",
             &["-c", &full_cmd],
             &ct,

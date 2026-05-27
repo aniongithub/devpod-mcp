@@ -8,6 +8,10 @@ use crate::tools::DevContainerMcp;
 struct DevcontainerRemoveParams {
     #[schemars(description = "Path to the workspace folder (used to find the container by label)")]
     workspace_folder: String,
+    #[schemars(
+        description = "Path to a specific devcontainer.json (use to disambiguate multi-container workspaces)"
+    )]
+    config: Option<String>,
     #[schemars(description = "Force removal even if the container is running")]
     force: Option<bool>,
 }
@@ -22,7 +26,13 @@ impl DevContainerMcp {
         &self,
         Parameters(params): Parameters<DevcontainerRemoveParams>,
     ) -> String {
-        match devcontainer::remove(&params.workspace_folder, params.force.unwrap_or(false)).await {
+        match devcontainer::remove(
+            &params.workspace_folder,
+            params.config.as_deref(),
+            params.force.unwrap_or(false),
+        )
+        .await
+        {
             Ok(msg) => msg,
             Err(e) => format!("Error: {e}"),
         }

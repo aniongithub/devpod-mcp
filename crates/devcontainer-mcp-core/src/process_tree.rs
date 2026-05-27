@@ -134,7 +134,7 @@ fn read_ppid(pid: u32) -> Option<u32> {
     None
 }
 
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 fn signal_all(pids: &[u32], sig: i32) {
     for &pid in pids {
         // kill(2) can fail with ESRCH if the process already exited;
@@ -146,9 +146,6 @@ fn signal_all(pids: &[u32], sig: i32) {
     }
 }
 
-#[cfg(not(unix))]
-fn signal_all(_: &[u32], _: i32) {}
-
 #[cfg(target_os = "linux")]
 fn any_alive(pids: &[u32]) -> bool {
     pids.iter().any(|&pid| {
@@ -158,16 +155,10 @@ fn any_alive(pids: &[u32]) -> bool {
     })
 }
 
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 mod libc_signal {
     pub const SIGTERM: i32 = libc::SIGTERM;
     pub const SIGKILL: i32 = libc::SIGKILL;
-}
-
-#[cfg(not(unix))]
-mod libc_signal {
-    pub const SIGTERM: i32 = 15;
-    pub const SIGKILL: i32 = 9;
 }
 
 #[cfg(test)]

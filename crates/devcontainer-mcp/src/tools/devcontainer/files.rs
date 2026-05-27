@@ -8,6 +8,10 @@ use crate::tools::DevContainerMcp;
 struct DevcontainerFileReadParams {
     #[schemars(description = "Path to the workspace folder")]
     workspace_folder: String,
+    #[schemars(
+        description = "Path to a specific devcontainer.json (use to disambiguate multi-container workspaces)"
+    )]
+    config: Option<String>,
     #[schemars(description = "Path to the file inside the container")]
     path: String,
     #[schemars(description = "Start line number (1-based, inclusive)")]
@@ -22,6 +26,10 @@ struct DevcontainerFileReadParams {
 struct DevcontainerFileWriteParams {
     #[schemars(description = "Path to the workspace folder")]
     workspace_folder: String,
+    #[schemars(
+        description = "Path to a specific devcontainer.json (use to disambiguate multi-container workspaces)"
+    )]
+    config: Option<String>,
     #[schemars(description = "Path to the file inside the container")]
     path: String,
     #[schemars(description = "File content to write")]
@@ -32,6 +40,10 @@ struct DevcontainerFileWriteParams {
 struct DevcontainerFileEditParams {
     #[schemars(description = "Path to the workspace folder")]
     workspace_folder: String,
+    #[schemars(
+        description = "Path to a specific devcontainer.json (use to disambiguate multi-container workspaces)"
+    )]
+    config: Option<String>,
     #[schemars(description = "Path to the file inside the container")]
     path: String,
     #[schemars(description = "The exact string in the file to replace. Must match exactly once.")]
@@ -44,6 +56,10 @@ struct DevcontainerFileEditParams {
 struct DevcontainerFileListParams {
     #[schemars(description = "Path to the workspace folder")]
     workspace_folder: String,
+    #[schemars(
+        description = "Path to a specific devcontainer.json (use to disambiguate multi-container workspaces)"
+    )]
+    config: Option<String>,
     #[schemars(description = "Path to the directory inside the container (defaults to '.')")]
     path: Option<String>,
 }
@@ -58,7 +74,13 @@ impl DevContainerMcp {
         &self,
         Parameters(params): Parameters<DevcontainerFileReadParams>,
     ) -> String {
-        match devcontainer::file_read(&params.workspace_folder, &params.path).await {
+        match devcontainer::file_read(
+            &params.workspace_folder,
+            params.config.as_deref(),
+            &params.path,
+        )
+        .await
+        {
             Ok(output) => {
                 if output.exit_code != 0 {
                     return format!(
@@ -84,8 +106,13 @@ impl DevContainerMcp {
         &self,
         Parameters(params): Parameters<DevcontainerFileWriteParams>,
     ) -> String {
-        match devcontainer::file_write(&params.workspace_folder, &params.path, &params.content)
-            .await
+        match devcontainer::file_write(
+            &params.workspace_folder,
+            params.config.as_deref(),
+            &params.path,
+            &params.content,
+        )
+        .await
         {
             Ok(output) => {
                 if output.exit_code != 0 {
@@ -112,6 +139,7 @@ impl DevContainerMcp {
     ) -> String {
         match devcontainer::file_edit(
             &params.workspace_folder,
+            params.config.as_deref(),
             &params.path,
             &params.old_str,
             &params.new_str,
@@ -132,7 +160,8 @@ impl DevContainerMcp {
         Parameters(params): Parameters<DevcontainerFileListParams>,
     ) -> String {
         let dir = params.path.as_deref().unwrap_or(".");
-        match devcontainer::file_list(&params.workspace_folder, dir).await {
+        match devcontainer::file_list(&params.workspace_folder, params.config.as_deref(), dir).await
+        {
             Ok(output) => {
                 if output.exit_code != 0 {
                     format!(
