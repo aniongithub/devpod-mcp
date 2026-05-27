@@ -2,6 +2,7 @@ mod build;
 mod config;
 mod exec;
 mod files;
+mod list_configs;
 mod remove;
 mod status;
 mod stop;
@@ -21,5 +22,6 @@ impl DevContainerMcp {
             + Self::devcontainer_remove_router()
             + Self::devcontainer_status_router()
             + Self::devcontainer_files_router()
+            + Self::devcontainer_list_configs_router()
     }
 }

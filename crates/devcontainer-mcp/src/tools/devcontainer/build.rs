@@ -13,6 +13,10 @@ struct DevcontainerBuildParams {
     #[schemars(description = "Path to the workspace folder")]
     workspace_folder: String,
     #[schemars(
+        description = "Path to a specific devcontainer.json (use to disambiguate multi-container workspaces)"
+    )]
+    config: Option<String>,
+    #[schemars(
         description = "Additional flags as space-separated args, e.g. '--no-cache --image-name my-image'"
     )]
     extra_args: Option<String>,
@@ -38,7 +42,14 @@ impl DevContainerMcp {
             .unwrap_or_default();
         let extra_refs: Vec<&str> = extra.iter().map(|s| s.as_str()).collect();
         let sink = progress_sink_from_meta(&meta, &peer);
-        match devcontainer::build_streaming(&params.workspace_folder, &extra_refs, &ct, sink).await
+        match devcontainer::build_streaming(
+            &params.workspace_folder,
+            params.config.as_deref(),
+            &extra_refs,
+            &ct,
+            sink,
+        )
+        .await
         {
             Ok(output) => format_output(&output),
             Err(e) => format!("Error: {e}"),

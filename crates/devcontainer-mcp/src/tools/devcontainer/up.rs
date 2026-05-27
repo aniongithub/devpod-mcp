@@ -14,7 +14,9 @@ struct DevcontainerUpParams {
         description = "Path to the workspace folder containing .devcontainer/devcontainer.json"
     )]
     workspace_folder: String,
-    #[schemars(description = "Path to a specific devcontainer.json (overrides auto-detection)")]
+    #[schemars(
+        description = "Path to a specific devcontainer.json (use to disambiguate multi-container workspaces)"
+    )]
     config: Option<String>,
     #[schemars(
         description = "Additional flags as space-separated args, e.g. '--remove-existing-container --build-no-cache'"

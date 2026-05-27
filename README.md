@@ -114,7 +114,7 @@ Codespaces tools require an auth handle (e.g. `"github-aniongithub"`). The MCP s
 
 Supported providers: **GitHub**, **AWS**, **Azure**, **GCP**, **Kubernetes**
 
-## MCP Tools (45 total)
+## MCP Tools (46 total)
 
 ### Auth (4 tools)
 
@@ -149,7 +149,7 @@ Supported providers: **GitHub**, **AWS**, **Azure**, **GCP**, **Kubernetes**
 | `devpod_file_edit` | Surgical string replacement — old_str → new_str |
 | `devpod_file_list` | List directory contents (non-hidden, 2 levels deep) |
 
-### devcontainer CLI (11 tools)
+### devcontainer CLI (12 tools)
 
 | Tool | Description |
 |------|-------------|
@@ -157,6 +157,7 @@ Supported providers: **GitHub**, **AWS**, **Azure**, **GCP**, **Kubernetes**
 | `devcontainer_exec` | Execute a command inside a running dev container |
 | `devcontainer_build` | Build a dev container image |
 | `devcontainer_read_config` | Read merged devcontainer configuration as JSON |
+| `devcontainer_list_configs` | Discover all devcontainer.json files in a workspace (single + multi-container) |
 | `devcontainer_stop` | Stop a dev container (via Docker API) |
 | `devcontainer_remove` | Remove a dev container and its resources |
 | `devcontainer_status` | Get dev container state by workspace folder |
@@ -220,6 +221,15 @@ Install backend CLIs as needed — the MCP server detects them at runtime and re
 ## Self-Healing
 
 When `devcontainer_up`, `devpod_up`, or `codespaces_create` fails, the full build output (including errors) is returned to the agent. The agent can read the error, fix the `Dockerfile` or `devcontainer.json`, and retry — making the dev environment a **dynamic, agent-managed asset** rather than a static prerequisite.
+
+## Multi-container workspaces
+
+The devcontainer spec supports [connecting to multiple containers](https://code.visualstudio.com/remote/advancedcontainers/connect-multiple-containers) in one workspace by placing per-service configs at `.devcontainer/<name>/devcontainer.json`, each pointing at a shared `docker-compose.yml`. `devcontainer-mcp` supports this pattern end-to-end:
+
+- **Discovery** — `devcontainer_list_configs` returns every config it finds (root `.devcontainer.json`, `.devcontainer/devcontainer.json`, and each `.devcontainer/*/devcontainer.json`) with its kind (`image` / `dockerfile` / `compose`), service name, and absolute path.
+- **Targeting** — Every devcontainer tool (`up`, `exec`, `build`, `stop`, `remove`, `status`, `read_config`, `file_*`) accepts an optional `config` parameter pointing at a specific `devcontainer.json`. Single-container workflows continue to work unchanged — `config` defaults to whatever the devcontainer CLI auto-detects.
+- **Ambiguity handling** — When a workspace has multiple configs and no `config` is provided, lookup-style tools (`status`, `exec`, `stop`, `remove`, `file_*`) return a structured `Ambiguous` result listing every matching container so the agent can pick the right one. `status` reports this as `{"state":"Ambiguous","candidates":[...],"hint":"..."}`.
+- **Robust container matching** — Sibling compose containers are identified via `com.docker.compose.service` + `com.docker.compose.project.config_files` (not the unreliable `devcontainer.local_folder` label, which is only stamped on the first container).
 
 ## Development
 

@@ -2,6 +2,7 @@ pub mod auth;
 pub mod cli;
 pub mod codespaces;
 pub mod devcontainer;
+pub mod devcontainer_config;
 pub mod devpod;
 pub mod docker;
 pub mod error;

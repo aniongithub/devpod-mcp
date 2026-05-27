@@ -18,6 +18,7 @@ futures-util = "0.3"
 async-trait = "0.1"
 base64 = "0.22"
 shlex = "1"
+jsonc-parser = { version = "0.26", features = ["serde"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

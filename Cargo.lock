@@ -320,6 +320,7 @@ dependencies = [
  "base64",
  "bollard",
  "futures-util",
+ "jsonc-parser",
  "libc",
  "serde",
  "serde_json",
@@ -823,6 +824,15 @@ checksum = "2964e92d1d9dc3364cae4d718d93f227e3abb088e747d92e0395bfdedf1c12ca"
 dependencies = [
  "once_cell",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "jsonc-parser"
+version = "0.26.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d6d80e6d70e7911a29f3cf3f44f452df85d06f73572b494ca99a2cad3fcf8f4"
+dependencies = [
+ "serde_json",
 ]
 
 [[package]]
